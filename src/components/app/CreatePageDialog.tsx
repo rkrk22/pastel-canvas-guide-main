@@ -21,6 +21,29 @@ export const CreatePageDialog = ({ open, onOpenChange, chapterId, onPageCreated 
     return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   };
 
+  const createMarkdownFile = async (slug: string, pageTitle: string) => {
+    const response = await fetch(`/api/content/pages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        slug,
+        title: pageTitle,
+        content: `# ${pageTitle}\n\nStart writing here...`,
+      }),
+    });
+
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || "Failed to create markdown file");
+    }
+  };
+
+  const deleteMarkdownFile = async (slug: string) => {
+    await fetch(`/api/content/pages/${slug}`, { method: "DELETE" });
+  };
+
   const handleCreate = async () => {
     if (!title.trim()) {
       toast.error("Please enter a page title");
@@ -40,6 +63,8 @@ export const CreatePageDialog = ({ open, onOpenChange, chapterId, onPageCreated 
       const nextIndex = pages && pages.length > 0 ? pages[0].index_num + 1 : 0;
       const slug = generateSlug(title);
 
+      await createMarkdownFile(slug, title);
+
       const { error } = await supabase
         .from('pages')
         .insert({
@@ -47,10 +72,13 @@ export const CreatePageDialog = ({ open, onOpenChange, chapterId, onPageCreated 
           title,
           slug,
           index_num: nextIndex,
-          content_md: '# ' + title + '\n\nStart writing here...',
+          content_md: '',
         });
 
-      if (error) throw error;
+      if (error) {
+        await deleteMarkdownFile(slug);
+        throw error;
+      }
 
       toast.success("Page created!");
       setTitle("");

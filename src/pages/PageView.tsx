@@ -13,12 +13,13 @@ export default function PageView() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [content, setContent] = useState("");
   const [editContent, setEditContent] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (slug) {
-      fetchPage();
+      fetchPage(slug);
       checkAdminStatus();
     }
   }, [slug]);
@@ -35,23 +36,39 @@ export default function PageView() {
     }
   };
 
-  const fetchPage = async () => {
+  const fetchPage = async (pageSlug: string) => {
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('pages')
-        .select('*')
-        .eq('slug', slug)
+        .select('id, title, slug, updated_at')
+        .eq('slug', pageSlug)
         .single();
 
       if (error) throw error;
       setPage(data);
-      setEditContent(data.content_md);
-
-      localStorage.setItem(`page-${slug}`, JSON.stringify(data));
+      await loadMarkdownContent(pageSlug);
     } catch (error) {
       console.error('Error fetching page:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMarkdownContent = async (pageSlug: string) => {
+    try {
+      const response = await fetch(`/api/content/pages/${pageSlug}`);
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Markdown file not found");
+      }
+      const text = await response.text();
+      setContent(text);
+      setEditContent(text);
+    } catch (error: any) {
+      setContent("");
+      setEditContent("");
+      toast.error(error.message || "Failed to load local markdown file");
     }
   };
 
@@ -61,11 +78,25 @@ export default function PageView() {
     setSaving(true);
 
     try {
+      const updateResponse = await fetch(`/api/content/pages/${page.slug}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ content: editContent }),
+      });
+
+      if (!updateResponse.ok) {
+        const message = await updateResponse.text();
+        throw new Error(message || "Failed to update markdown file");
+      }
+
+      const newTimestamp = new Date().toISOString();
+
       const { error } = await supabase
         .from('pages')
         .update({
-          content_md: editContent,
-          updated_at: new Date().toISOString(),
+          updated_at: newTimestamp,
         })
         .eq('id', page.id);
 
@@ -73,7 +104,8 @@ export default function PageView() {
 
       toast.success("Page saved!");
       setIsEditing(false);
-      fetchPage();
+      setContent(editContent);
+      setPage({ ...page, updated_at: newTimestamp });
     } catch (error: any) {
       toast.error(error.message || "Failed to save page");
     } finally {
@@ -122,7 +154,7 @@ export default function PageView() {
                 <Button
                   onClick={() => {
                     setIsEditing(false);
-                    setEditContent(page.content_md);
+                    setEditContent(content);
                   }}
                   size="sm"
                   variant="outline"
@@ -156,7 +188,7 @@ export default function PageView() {
         </div>
       ) : (
         <div className="prose prose-lg max-w-none">
-          <MarkdownRenderer content={page.content_md} />
+          <MarkdownRenderer content={content} />
         </div>
       )}
     </div>
