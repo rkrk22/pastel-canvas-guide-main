@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase, Page } from "@/lib/supabase";
-import { Loader2, Edit, Save, X } from "lucide-react";
+import { Loader2, Edit, Save, X, RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownRenderer } from "@/components/app/MarkdownRenderer";
@@ -10,19 +10,41 @@ import { toast } from "sonner";
 export default function PageView() {
   const { slug } = useParams<{ slug: string }>();
   const [page, setPage] = useState<Page | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState("");
   const [editContent, setEditContent] = useState("");
+  const [contentLoading, setContentLoading] = useState(true);
+  const [contentError, setContentError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (slug) {
-      fetchPage(slug);
-      checkAdminStatus();
-    }
+    if (!slug) return;
+
+    setPage(null);
+    setContentError(null);
+    primeContentFromCache(slug);
+
+    loadMarkdownContent(slug);
+    syncMetadata(slug);
+    checkAdminStatus();
   }, [slug]);
+
+  const getCacheKey = (pageSlug: string) => `page-content-${pageSlug}`;
+
+  const primeContentFromCache = (pageSlug: string) => {
+    const cached = localStorage.getItem(getCacheKey(pageSlug));
+    if (cached) {
+      setContent(cached);
+      setEditContent(cached);
+      setContentLoading(false);
+    } else {
+      setContent("");
+      setEditContent("");
+      setContentLoading(true);
+    }
+  };
 
   const checkAdminStatus = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -36,8 +58,8 @@ export default function PageView() {
     }
   };
 
-  const fetchPage = async (pageSlug: string) => {
-    setLoading(true);
+  const syncMetadata = async (pageSlug: string) => {
+    setSyncing(true);
     try {
       const { data, error } = await supabase
         .from('pages')
@@ -47,15 +69,15 @@ export default function PageView() {
 
       if (error) throw error;
       setPage(data);
-      await loadMarkdownContent(pageSlug);
     } catch (error) {
-      console.error('Error fetching page:', error);
+      console.error('Error syncing page metadata:', error);
     } finally {
-      setLoading(false);
+      setSyncing(false);
     }
   };
 
   const loadMarkdownContent = async (pageSlug: string) => {
+    setContentLoading(true);
     try {
       const response = await fetch(`/api/content/pages/${pageSlug}`);
       if (!response.ok) {
@@ -65,15 +87,24 @@ export default function PageView() {
       const text = await response.text();
       setContent(text);
       setEditContent(text);
+      localStorage.setItem(getCacheKey(pageSlug), text);
+      setContentError(null);
     } catch (error: any) {
       setContent("");
       setEditContent("");
-      toast.error(error.message || "Failed to load local markdown file");
+      const message = error.message || "Failed to load local markdown file";
+      setContentError(message);
+      toast.error(message);
+    } finally {
+      setContentLoading(false);
     }
   };
 
   const handleSave = async () => {
-    if (!page) return;
+    if (!page) {
+      toast.error("Still syncing with Supabase – please wait");
+      return;
+    }
 
     setSaving(true);
 
@@ -95,9 +126,7 @@ export default function PageView() {
 
       const { error } = await supabase
         .from('pages')
-        .update({
-          updated_at: newTimestamp,
-        })
+        .update({ updated_at: newTimestamp })
         .eq('id', page.id);
 
       if (error) throw error;
@@ -105,6 +134,7 @@ export default function PageView() {
       toast.success("Page saved!");
       setIsEditing(false);
       setContent(editContent);
+      localStorage.setItem(getCacheKey(page.slug), editContent);
       setPage({ ...page, updated_at: newTimestamp });
     } catch (error: any) {
       toast.error(error.message || "Failed to save page");
@@ -113,7 +143,14 @@ export default function PageView() {
     }
   };
 
-  if (loading) {
+  const derivedTitle = useMemo(() => {
+    if (page?.title) return page.title;
+    const headingMatch = content.match(/^#\s+(.+)/m);
+    if (headingMatch?.[1]) return headingMatch[1];
+    return slug || "Untitled";
+  }, [content, page?.title, slug]);
+
+  if (contentLoading && !content) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -121,24 +158,21 @@ export default function PageView() {
     );
   }
 
-  if (!page) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Page not found</p>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-4xl mx-auto p-8">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-2">
         <div>
-          <h1 className="text-4xl font-bold mb-2">{page.title}</h1>
-          <p className="text-sm text-muted-foreground">
-            Last updated: {new Date(page.updated_at).toLocaleDateString()}
-          </p>
+          <h1 className="text-4xl font-bold mb-2">{derivedTitle}</h1>
+          {page?.updated_at && (
+            <p className="text-sm text-muted-foreground">
+              Last synced: {new Date(page.updated_at).toLocaleDateString()}
+            </p>
+          )}
+          {!page && (
+            <p className="text-xs text-muted-foreground">Syncing metadata from Supabase…</p>
+          )}
         </div>
-        {isAdmin && (
+        {isAdmin && page && (
           <div className="flex gap-2">
             {!isEditing ? (
               <Button onClick={() => setIsEditing(true)} size="sm">
@@ -168,6 +202,13 @@ export default function PageView() {
         )}
       </div>
 
+      {syncing && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
+          <RefreshCcw className="h-3 w-3 animate-spin" />
+          <span>Syncing with Supabase…</span>
+        </div>
+      )}
+
       {isEditing ? (
         <div className="grid grid-cols-2 gap-6">
           <div>
@@ -185,6 +226,10 @@ export default function PageView() {
               <MarkdownRenderer content={editContent} />
             </div>
           </div>
+        </div>
+      ) : contentError ? (
+        <div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-xl p-6">
+          {contentError}
         </div>
       ) : (
         <div className="prose prose-lg max-w-none">

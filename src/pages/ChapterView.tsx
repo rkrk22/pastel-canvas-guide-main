@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
+import type { DragEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase, Chapter, Page } from "@/lib/supabase";
-import { Loader2, FileText } from "lucide-react";
+import { Loader2, FileText, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CreatePageDialog } from "@/components/app/CreatePageDialog";
+import { toast } from "sonner";
+import { reorderById } from "@/lib/reorder";
 
 export default function ChapterView() {
   const { slug } = useParams<{ slug: string }>();
@@ -13,6 +16,9 @@ export default function ChapterView() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [draggingPageId, setDraggingPageId] = useState<string | null>(null);
+  const [pageOrderSaving, setPageOrderSaving] = useState(false);
+  const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (slug) {
@@ -64,6 +70,104 @@ export default function ChapterView() {
     }
   };
 
+  const handlePageDragStart = (event: DragEvent<HTMLElement>, pageId: string) => {
+    if (!isAdmin || pageOrderSaving) return;
+    setDraggingPageId(pageId);
+    setDropIndicatorIndex(null);
+    event.dataTransfer.effectAllowed = "move";
+  };
+
+  const handlePageDragEnd = () => {
+    setDraggingPageId(null);
+    setDropIndicatorIndex(null);
+  };
+
+  const handlePageDragOver = (
+    event: DragEvent<HTMLElement>,
+    targetPageId: string | null,
+    targetIndex: number | null,
+  ) => {
+    if (!isAdmin || !draggingPageId) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (targetPageId && typeof targetIndex === "number") {
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const placeAfter = event.clientY > rect.top + rect.height / 2;
+      setDropIndicatorIndex(placeAfter ? targetIndex + 1 : targetIndex);
+    } else {
+      setDropIndicatorIndex(pages.length);
+    }
+  };
+
+  const persistPageOrder = async (nextOrder: Page[], previousOrder: Page[]) => {
+    setPageOrderSaving(true);
+    try {
+      const payload = nextOrder.map(({
+        id,
+        chapter_id,
+        content_md,
+        slug,
+        title,
+        index_num,
+        updated_at,
+      }) => ({
+        id,
+        chapter_id,
+        content_md,
+        slug,
+        title,
+        index_num,
+        updated_at,
+      }));
+      const { error } = await supabase
+        .from('pages')
+        .upsert(payload, { onConflict: 'id' });
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      console.error("Failed to reorder pages:", error);
+      toast.error("Не удалось сохранить порядок страниц");
+      setPages(previousOrder);
+    } finally {
+      setPageOrderSaving(false);
+    }
+  };
+
+  const handlePageDrop = async (
+    event: DragEvent<HTMLElement>,
+    targetPageId: string | null,
+  ) => {
+    if (!isAdmin || !draggingPageId) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const rect = event.currentTarget?.getBoundingClientRect();
+    const placeAfter = targetPageId && rect
+      ? event.clientY > rect.top + rect.height / 2
+      : true;
+
+    const reordered = reorderById(pages, draggingPageId, targetPageId, placeAfter);
+
+    if (!reordered) {
+      setDraggingPageId(null);
+      return;
+    }
+
+    const previousOrder = pages;
+    setPages(reordered);
+    await persistPageOrder(reordered, previousOrder);
+    setDraggingPageId(null);
+    setDropIndicatorIndex(null);
+  };
+
+  const handleNavigateToPage = (pageSlug: string) => {
+    if (draggingPageId) return;
+    navigate(`/app/pages/${pageSlug}`);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -97,19 +201,56 @@ export default function ChapterView() {
           </div>
         ) : (
           <div className="space-y-2">
-            <h2 className="text-lg font-semibold mb-4">Pages:</h2>
-            {pages.map((page) => (
-              <div
-                key={page.id}
-                className="p-4 rounded-xl bg-card border border-border hover:border-primary/50 transition-colors cursor-pointer"
-                onClick={() => navigate(`/app/pages/${page.slug}`)}
-              >
-                <h3 className="font-medium">{page.title}</h3>
-                <p className="text-sm text-muted-foreground">
-                  Last updated: {new Date(page.updated_at).toLocaleDateString()}
-                </p>
-              </div>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-semibold">Pages:</h2>
+              {isAdmin && (
+                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                  {pageOrderSaving && <Loader2 className="h-3 w-3 animate-spin" />}
+                  <span>{pageOrderSaving ? "Saving order…" : "Drag to reorder"}</span>
+                </div>
+              )}
+            </div>
+            {pages.map((page, index) => (
+              <Fragment key={page.id}>
+                {dropIndicatorIndex === index && (
+                  <div className="mx-6 my-1 h-0.5 rounded-full bg-primary/80" />
+                )}
+                <div
+                  className={`flex items-center gap-3 p-4 rounded-xl bg-card border border-border hover:border-primary/50 transition-colors cursor-pointer ${
+                    draggingPageId === page.id ? "border-primary/60 bg-card/80" : ""
+                  }`}
+                  onDragOver={(event) => handlePageDragOver(event, page.id, index)}
+                  onDrop={(event) => handlePageDrop(event, page.id)}
+                  onClick={() => handleNavigateToPage(page.slug)}
+                >
+                  {isAdmin && (
+                    <span
+                      className="text-muted-foreground cursor-grab active:cursor-grabbing"
+                      draggable={isAdmin && !pageOrderSaving}
+                      onDragStart={(event) => handlePageDragStart(event, page.id)}
+                      onDragEnd={handlePageDragEnd}
+                    >
+                      <GripVertical className="h-4 w-4" />
+                    </span>
+                  )}
+                  <div>
+                    <h3 className="font-medium">{page.title}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Last updated: {new Date(page.updated_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              </Fragment>
             ))}
+            <div
+              className="relative h-6"
+              onDragOver={(event) => handlePageDragOver(event, null, null)}
+              onDrop={(event) => handlePageDrop(event, null)}
+            >
+              {dropIndicatorIndex === pages.length && (
+                <span className="pointer-events-none absolute left-6 right-6 top-1/2 -translate-y-1/2 h-0.5 rounded-full bg-primary/80" />
+              )}
+            </div>
             {isAdmin && (
               <Button
                 variant="outline"

@@ -1,5 +1,6 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { VideoEmbed } from './VideoEmbed';
 
 interface MarkdownRendererProps {
   content: string;
@@ -49,11 +50,7 @@ export const MarkdownRenderer = ({ content }: MarkdownRendererProps) => {
         img: ({ src, alt }) => (
           <img src={src} alt={alt} className="rounded-xl my-4 max-w-full" />
         ),
-        a: ({ href, children }) => (
-          <a href={href} className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
-            {children}
-          </a>
-        ),
+        a: (props) => <VideoEmbed {...props} />,
       }}
     >
       {content}
