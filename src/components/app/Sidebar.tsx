@@ -198,7 +198,7 @@ export const Sidebar = ({ isAdmin }: SidebarProps) => {
 
   return (
     <>
-      <aside className="w-64 border-r border-sidebar-border bg-sidebar-background flex flex-col">
+      <aside className="w-56 border-r border-sidebar-border bg-sidebar-background flex flex-col">
         <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center gap-2 mb-4">
             <Book className="h-5 w-5 text-sidebar-primary" />

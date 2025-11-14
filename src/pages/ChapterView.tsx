@@ -289,7 +289,7 @@ export default function ChapterView() {
 
   return (
     <>
-      <div className="p-8 max-w-6xl mx-auto">
+      <div className="py-8 pr-8 pl-4 max-w-6xl w-full">
         <h1 className="text-4xl font-bold mb-8">{chapter.title}</h1>
 
         {pages.length === 0 ? (

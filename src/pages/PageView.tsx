@@ -12,9 +12,13 @@ import {
   writePageContentUpdatedAt,
 } from "@/lib/contentCache";
 
-export default function PageView() {
+interface PageViewProps {
+  slugOverride?: string | null;
+}
+
+export default function PageView({ slugOverride }: PageViewProps = {}) {
   const { pageSlug, slug: legacySlug } = useParams<{ pageSlug?: string; slug?: string }>();
-  const slug = pageSlug ?? legacySlug;
+  const slug = slugOverride ?? pageSlug ?? legacySlug;
   const initialCachedContent = readPageContentCache(slug);
   const hasInitialCache = initialCachedContent !== null;
   const [page, setPage] = useState<Page | null>(null);
@@ -177,18 +181,10 @@ export default function PageView() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-8">
+    <div className="relative max-w-5xl mx-auto p-8 pb-20">
       <div className="flex items-center justify-between mb-2">
         <div>
           <h1 className="text-4xl font-bold mb-2">{derivedTitle}</h1>
-          {page?.updated_at && (
-            <p className="text-sm text-muted-foreground">
-              Last synced: {new Date(page.updated_at).toLocaleDateString()}
-            </p>
-          )}
-          {!page && (
-            <p className="text-xs text-muted-foreground">Syncing metadata from Supabase…</p>
-          )}
         </div>
         {isAdmin && page && (
           <div className="flex gap-2">
@@ -252,6 +248,15 @@ export default function PageView() {
       ) : (
         <div className="prose prose-lg max-w-none">
           <MarkdownRenderer content={content} />
+        </div>
+      )}
+
+      {(page?.updated_at || !page) && (
+        <div className="pointer-events-none absolute bottom-0 right-0 text-right text-xs text-muted-foreground space-y-1 p-4">
+          {!page && <p>Syncing metadata from Supabase…</p>}
+          {page?.updated_at && (
+            <p>Last synced: {new Date(page.updated_at).toLocaleDateString()}</p>
+          )}
         </div>
       )}
     </div>

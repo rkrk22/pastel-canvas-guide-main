@@ -66,20 +66,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(nextSession?.user ?? null);
 
       if (nextSession?.user) {
-        ensureProfile(nextSession.user.id).finally(() => {
-          if (isMounted) {
-            setInitializing(false);
-          }
-        });
+        ensureProfile(nextSession.user.id);
       } else {
         setProfile(null);
-        setInitializing(false);
       }
+
+      setInitializing(false);
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      processSession(session);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        processSession(session);
+      })
+      .catch((error) => {
+        console.error("Failed to bootstrap auth session:", error);
+        if (isMounted) {
+          setInitializing(false);
+        }
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
