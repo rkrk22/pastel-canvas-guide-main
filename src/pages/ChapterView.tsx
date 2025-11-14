@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import type { DragEvent } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { supabase, Chapter, Page } from "@/lib/supabase";
 import { Loader2, FileText, GripVertical, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { CreatePageDialog } from "@/components/app/CreatePageDialog";
 import { toast } from "sonner";
 import { reorderById } from "@/lib/reorder";
 import { readPageContentCache, shouldPrefetchPageContent, writePageContentCache } from "@/lib/contentCache";
+import PageView from "./PageView";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +22,6 @@ import {
 
 export default function ChapterView() {
   const { chapterSlug } = useParams<{ chapterSlug: string }>();
-  const navigate = useNavigate();
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [pages, setPages] = useState<Page[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +33,7 @@ export default function ChapterView() {
   const [navigatingPageSlug, setNavigatingPageSlug] = useState<string | null>(null);
   const [pagePendingDeletion, setPagePendingDeletion] = useState<Page | null>(null);
   const [pageDeleting, setPageDeleting] = useState(false);
+  const [selectedPageSlug, setSelectedPageSlug] = useState<string | null>(null);
 
   useEffect(() => {
     if (chapterSlug) {
@@ -76,7 +77,16 @@ export default function ChapterView() {
 
       await deleteMarkdownFile(pageToDelete.slug);
 
-      setPages((prev) => prev.filter((pageItem) => pageItem.id !== pageToDelete.id));
+      setPages((prev) => {
+        const nextPages = prev.filter((pageItem) => pageItem.id !== pageToDelete.id);
+        setSelectedPageSlug((current) => {
+          if (current && nextPages.some((page) => page.slug === current)) {
+            return current;
+          }
+          return nextPages[0]?.slug ?? null;
+        });
+        return nextPages;
+      });
       toast.success("Page deleted");
     } catch (error: any) {
       console.error("Failed to delete page:", error);
@@ -110,12 +120,18 @@ export default function ChapterView() {
       setPages(pagesData || []);
 
       if (pagesData && pagesData.length > 0) {
-        // Ensure the first page content is cached before redirecting
+        // Ensure the first page content is cached before the reader opens
         await prefetchPageContents([pagesData[0]]);
         // Warm up the rest of the chapter in the background
         void prefetchPageContents(pagesData.slice(1));
-
-        navigate(`/app/chapters/${chapterSlug}/pages/${pagesData[0].slug}`, { replace: true });
+        setSelectedPageSlug((current) => {
+          if (current && pagesData.some((page) => page.slug === current)) {
+            return current;
+          }
+          return pagesData[0]?.slug ?? null;
+        });
+      } else {
+        setSelectedPageSlug(null);
       }
     } catch (error) {
       console.error('Error fetching chapter:', error);
@@ -249,7 +265,7 @@ export default function ChapterView() {
       if (!cached) {
         await prefetchPageContents(pages.filter((page) => page.slug === pageSlug));
       }
-      navigate(`/app/chapters/${chapterSlug}/pages/${pageSlug}`);
+      setSelectedPageSlug(pageSlug);
     } finally {
       setNavigatingPageSlug(null);
     }
@@ -273,7 +289,7 @@ export default function ChapterView() {
 
   return (
     <>
-      <div className="p-8 max-w-4xl mx-auto">
+      <div className="p-8 max-w-6xl mx-auto">
         <h1 className="text-4xl font-bold mb-8">{chapter.title}</h1>
 
         {pages.length === 0 ? (
@@ -287,82 +303,98 @@ export default function ChapterView() {
             )}
           </div>
         ) : (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-semibold">Pages:</h2>
-              {isAdmin && (
-                <div className="text-xs text-muted-foreground flex items-center gap-2">
-                  {pageOrderSaving && <Loader2 className="h-3 w-3 animate-spin" />}
-                  <span>{pageOrderSaving ? "Saving order…" : "Drag to reorder"}</span>
-                </div>
-              )}
-            </div>
-            {pages.map((page, index) => (
-              <Fragment key={page.id}>
-                {dropIndicatorIndex === index && (
-                  <div className="mx-6 my-1 h-0.5 rounded-full bg-primary/80" />
-                )}
-                <div
-                  className={`flex items-center gap-3 p-4 rounded-xl bg-card border border-border hover:border-primary/50 transition-colors cursor-pointer ${
-                    draggingPageId === page.id ? "border-primary/60 bg-card/80" : ""
-                  } ${navigatingPageSlug === page.slug ? "opacity-70" : ""}`}
-                  onDragOver={(event) => handlePageDragOver(event, page.id, index)}
-                  onDrop={(event) => handlePageDrop(event, page.id)}
-                  onClick={() => void handleNavigateToPage(page.slug)}
-                >
-                  {isAdmin && (
-                    <span
-                      className="text-muted-foreground cursor-grab active:cursor-grabbing"
-                      draggable={isAdmin && !pageOrderSaving}
-                      onDragStart={(event) => handlePageDragStart(event, page.id)}
-                      onDragEnd={handlePageDragEnd}
-                    >
-                      <GripVertical className="h-4 w-4" />
-                    </span>
-                  )}
-                  <div>
-                    <h3 className="font-medium">{page.title}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Last updated: {new Date(page.updated_at).toLocaleDateString()}
-                    </p>
+          <div className="grid gap-8 lg:grid-cols-[220px,1fr]">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-lg font-semibold">Pages:</h2>
+                {isAdmin && (
+                  <div className="text-xs text-muted-foreground flex items-center gap-2">
+                    {pageOrderSaving && <Loader2 className="h-3 w-3 animate-spin" />}
+                    <span>{pageOrderSaving ? "Saving order…" : "Drag to reorder"}</span>
                   </div>
-                  {isAdmin && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="ml-auto text-muted-foreground hover:text-destructive"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        if (!pageDeleting) {
-                          setPagePendingDeletion(page);
-                        }
-                      }}
-                      disabled={pageDeleting}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                )}
+              </div>
+              {pages.map((page, index) => (
+                <Fragment key={page.id}>
+                  {dropIndicatorIndex === index && (
+                    <div className="mx-3 my-1 h-0.5 rounded-full bg-primary/80" />
                   )}
-                </div>
-              </Fragment>
-            ))}
-            <div
-              className="relative h-6"
-              onDragOver={(event) => handlePageDragOver(event, null, null)}
-              onDrop={(event) => handlePageDrop(event, null)}
-            >
-              {dropIndicatorIndex === pages.length && (
-                <span className="pointer-events-none absolute left-6 right-6 top-1/2 -translate-y-1/2 h-0.5 rounded-full bg-primary/80" />
+                  <div
+                    className={`flex items-start gap-2 px-3 py-2 rounded-xl bg-card border border-border hover:border-primary/50 transition-colors cursor-pointer ${
+                      draggingPageId === page.id ? "border-primary/60 bg-card/80" : ""
+                    } ${navigatingPageSlug === page.slug ? "opacity-70" : ""} ${
+                      selectedPageSlug === page.slug ? "border-primary" : ""
+                    }`}
+                    onDragOver={(event) => handlePageDragOver(event, page.id, index)}
+                    onDrop={(event) => handlePageDrop(event, page.id)}
+                    onClick={() => void handleNavigateToPage(page.slug)}
+                  >
+                    {isAdmin && (
+                      <span
+                        className="text-muted-foreground cursor-grab active:cursor-grabbing"
+                        draggable={isAdmin && !pageOrderSaving}
+                        onDragStart={(event) => handlePageDragStart(event, page.id)}
+                        onDragEnd={handlePageDragEnd}
+                      >
+                        <GripVertical className="h-4 w-4" />
+                      </span>
+                    )}
+                    <div className="text-left flex-1">
+                      <h3 className="font-medium leading-tight">{page.title}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Last updated: {new Date(page.updated_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    {isAdmin && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="ml-auto text-muted-foreground hover:text-destructive"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (!pageDeleting) {
+                            setPagePendingDeletion(page);
+                          }
+                        }}
+                        disabled={pageDeleting}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </Fragment>
+              ))}
+              <div
+                className="relative h-6"
+                onDragOver={(event) => handlePageDragOver(event, null, null)}
+                onDrop={(event) => handlePageDrop(event, null)}
+              >
+                {dropIndicatorIndex === pages.length && (
+                  <span className="pointer-events-none absolute left-6 right-6 top-1/2 -translate-y-1/2 h-0.5 rounded-full bg-primary/80" />
+                )}
+              </div>
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  className="w-full mt-4"
+                  onClick={() => setShowCreateDialog(true)}
+                >
+                  Add Page
+                </Button>
               )}
             </div>
-            {isAdmin && (
-              <Button
-                variant="outline"
-                className="w-full mt-4"
-                onClick={() => setShowCreateDialog(true)}
-              >
-                Add Page
-              </Button>
-            )}
+
+            <div className="border border-border rounded-2xl bg-card/30 p-4 min-h-[400px]">
+              {selectedPageSlug ? (
+                <div className="h-full overflow-auto">
+                  <PageView slugOverride={selectedPageSlug} />
+                </div>
+              ) : (
+                <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                  Select a page to start reading.
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
