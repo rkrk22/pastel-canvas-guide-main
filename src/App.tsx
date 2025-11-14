@@ -25,7 +25,8 @@ const App = () => {
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/app" element={<AuthGate><AppShell /></AuthGate>}>
               <Route index element={<AppHome />} />
-              <Route path="chapters/:slug" element={<ChapterView />} />
+              <Route path="chapters/:chapterSlug" element={<ChapterView />} />
+              <Route path="chapters/:chapterSlug/pages/:pageSlug" element={<PageView />} />
               <Route path="pages/:slug" element={<PageView />} />
             </Route>
             <Route path="*" element={<NotFound />} />

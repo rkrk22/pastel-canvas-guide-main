@@ -6,13 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownRenderer } from "@/components/app/MarkdownRenderer";
 import { toast } from "sonner";
+import {
+  readPageContentCache,
+  writePageContentCache,
+  writePageContentUpdatedAt,
+} from "@/lib/contentCache";
 
 export default function PageView() {
-  const { slug } = useParams<{ slug: string }>();
+  const { pageSlug, slug: legacySlug } = useParams<{ pageSlug?: string; slug?: string }>();
+  const slug = pageSlug ?? legacySlug;
+  const initialCachedContent = readPageContentCache(slug);
+  const hasInitialCache = initialCachedContent !== null;
   const [page, setPage] = useState<Page | null>(null);
-  const [content, setContent] = useState("");
-  const [editContent, setEditContent] = useState("");
-  const [contentLoading, setContentLoading] = useState(true);
+  const [content, setContent] = useState(initialCachedContent ?? "");
+  const [editContent, setEditContent] = useState(initialCachedContent ?? "");
+  const [contentLoading, setContentLoading] = useState(() => !hasInitialCache);
   const [contentError, setContentError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -24,26 +32,32 @@ export default function PageView() {
 
     setPage(null);
     setContentError(null);
-    primeContentFromCache(slug);
+    const hadCache = primeContentFromCache(slug);
 
-    loadMarkdownContent(slug);
+    loadMarkdownContent(slug, hadCache);
     syncMetadata(slug);
     checkAdminStatus();
   }, [slug]);
 
-  const getCacheKey = (pageSlug: string) => `page-content-${pageSlug}`;
+  useEffect(() => {
+    if (page?.slug && page.updated_at) {
+      writePageContentUpdatedAt(page.slug, page.updated_at);
+    }
+  }, [page?.slug, page?.updated_at]);
 
   const primeContentFromCache = (pageSlug: string) => {
-    const cached = localStorage.getItem(getCacheKey(pageSlug));
-    if (cached) {
+    const cached = readPageContentCache(pageSlug);
+    if (cached !== null) {
       setContent(cached);
       setEditContent(cached);
       setContentLoading(false);
-    } else {
-      setContent("");
-      setEditContent("");
-      setContentLoading(true);
+      return true;
     }
+
+    setContent("");
+    setEditContent("");
+    setContentLoading(true);
+    return false;
   };
 
   const checkAdminStatus = async () => {
@@ -76,8 +90,10 @@ export default function PageView() {
     }
   };
 
-  const loadMarkdownContent = async (pageSlug: string) => {
-    setContentLoading(true);
+  const loadMarkdownContent = async (pageSlug: string, hadCache = false) => {
+    if (!hadCache) {
+      setContentLoading(true);
+    }
     try {
       const response = await fetch(`/api/content/pages/${pageSlug}`);
       if (!response.ok) {
@@ -87,7 +103,7 @@ export default function PageView() {
       const text = await response.text();
       setContent(text);
       setEditContent(text);
-      localStorage.setItem(getCacheKey(pageSlug), text);
+      writePageContentCache(pageSlug, text, page?.updated_at || undefined);
       setContentError(null);
     } catch (error: any) {
       setContent("");
@@ -96,7 +112,9 @@ export default function PageView() {
       setContentError(message);
       toast.error(message);
     } finally {
-      setContentLoading(false);
+      if (!hadCache) {
+        setContentLoading(false);
+      }
     }
   };
 
@@ -134,7 +152,7 @@ export default function PageView() {
       toast.success("Page saved!");
       setIsEditing(false);
       setContent(editContent);
-      localStorage.setItem(getCacheKey(page.slug), editContent);
+      writePageContentCache(page.slug, editContent, newTimestamp);
       setPage({ ...page, updated_at: newTimestamp });
     } catch (error: any) {
       toast.error(error.message || "Failed to save page");
@@ -203,8 +221,8 @@ export default function PageView() {
       </div>
 
       {syncing && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4">
-          <RefreshCcw className="h-3 w-3 animate-spin" />
+        <div className="pointer-events-none fixed bottom-6 right-6 flex items-center gap-2 rounded-full border border-border bg-background/95 px-3 py-2 text-xs text-muted-foreground shadow-sm">
+          <RefreshCcw className="h-3 w-3 animate-spin text-primary" />
           <span>Syncing with Supabase…</span>
         </div>
       )}

@@ -2,14 +2,25 @@ import { Fragment, useEffect, useState } from "react";
 import type { DragEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase, Chapter, Page } from "@/lib/supabase";
-import { Loader2, FileText, GripVertical } from "lucide-react";
+import { Loader2, FileText, GripVertical, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CreatePageDialog } from "@/components/app/CreatePageDialog";
 import { toast } from "sonner";
 import { reorderById } from "@/lib/reorder";
+import { readPageContentCache, shouldPrefetchPageContent, writePageContentCache } from "@/lib/contentCache";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function ChapterView() {
-  const { slug } = useParams<{ slug: string }>();
+  const { chapterSlug } = useParams<{ chapterSlug: string }>();
   const navigate = useNavigate();
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [pages, setPages] = useState<Page[]>([]);
@@ -19,13 +30,16 @@ export default function ChapterView() {
   const [draggingPageId, setDraggingPageId] = useState<string | null>(null);
   const [pageOrderSaving, setPageOrderSaving] = useState(false);
   const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number | null>(null);
+  const [navigatingPageSlug, setNavigatingPageSlug] = useState<string | null>(null);
+  const [pagePendingDeletion, setPagePendingDeletion] = useState<Page | null>(null);
+  const [pageDeleting, setPageDeleting] = useState(false);
 
   useEffect(() => {
-    if (slug) {
+    if (chapterSlug) {
       fetchChapterAndPages();
       checkAdminStatus();
     }
-  }, [slug]);
+  }, [chapterSlug]);
 
   const checkAdminStatus = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -39,12 +53,48 @@ export default function ChapterView() {
     }
   };
 
+  const deleteMarkdownFile = async (slug: string) => {
+    const response = await fetch(`/api/content/pages/${slug}`, { method: "DELETE" });
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || "Failed to delete markdown file");
+    }
+  };
+
+  const handleConfirmDeletePage = async () => {
+    if (!pagePendingDeletion) return;
+    setPageDeleting(true);
+    const pageToDelete = pagePendingDeletion;
+
+    try {
+      const { error } = await supabase
+        .from('pages')
+        .delete()
+        .eq('id', pageToDelete.id);
+
+      if (error) throw error;
+
+      await deleteMarkdownFile(pageToDelete.slug);
+
+      setPages((prev) => prev.filter((pageItem) => pageItem.id !== pageToDelete.id));
+      toast.success("Page deleted");
+    } catch (error: any) {
+      console.error("Failed to delete page:", error);
+      toast.error(error.message || "Failed to delete page");
+    } finally {
+      setPageDeleting(false);
+      setPagePendingDeletion(null);
+    }
+  };
+
   const fetchChapterAndPages = async () => {
+    if (!chapterSlug) return;
+
     try {
       const { data: chapterData, error: chapterError } = await supabase
         .from('chapters')
         .select('*')
-        .eq('slug', slug)
+        .eq('slug', chapterSlug)
         .single();
 
       if (chapterError) throw chapterError;
@@ -59,15 +109,41 @@ export default function ChapterView() {
       if (pagesError) throw pagesError;
       setPages(pagesData || []);
 
-      // Redirect to first page if available
       if (pagesData && pagesData.length > 0) {
-        navigate(`/app/pages/${pagesData[0].slug}`, { replace: true });
+        // Ensure the first page content is cached before redirecting
+        await prefetchPageContents([pagesData[0]]);
+        // Warm up the rest of the chapter in the background
+        void prefetchPageContents(pagesData.slice(1));
+
+        navigate(`/app/chapters/${chapterSlug}/pages/${pagesData[0].slug}`, { replace: true });
       }
     } catch (error) {
       console.error('Error fetching chapter:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const prefetchPageContents = async (pageList: Page[]) => {
+    if (typeof window === "undefined" || pageList.length === 0) return;
+
+    await Promise.allSettled(
+      pageList.map(async (page) => {
+        if (!page.slug) return;
+
+        const needsPrefetch = shouldPrefetchPageContent(page.slug, page.updated_at);
+        if (!needsPrefetch) return;
+
+        try {
+          const response = await fetch(`/api/content/pages/${page.slug}`);
+          if (!response.ok) return;
+          const text = await response.text();
+          writePageContentCache(page.slug, text, page.updated_at || undefined);
+        } catch (error) {
+          console.error("Failed to prefetch page content", { slug: page.slug, error });
+        }
+      }),
+    );
   };
 
   const handlePageDragStart = (event: DragEvent<HTMLElement>, pageId: string) => {
@@ -163,9 +239,20 @@ export default function ChapterView() {
     setDropIndicatorIndex(null);
   };
 
-  const handleNavigateToPage = (pageSlug: string) => {
-    if (draggingPageId) return;
-    navigate(`/app/pages/${pageSlug}`);
+  const handleNavigateToPage = async (pageSlug: string) => {
+    if (draggingPageId || navigatingPageSlug === pageSlug) return;
+    if (!chapterSlug) return;
+
+    setNavigatingPageSlug(pageSlug);
+    try {
+      const cached = readPageContentCache(pageSlug);
+      if (!cached) {
+        await prefetchPageContents(pages.filter((page) => page.slug === pageSlug));
+      }
+      navigate(`/app/chapters/${chapterSlug}/pages/${pageSlug}`);
+    } finally {
+      setNavigatingPageSlug(null);
+    }
   };
 
   if (loading) {
@@ -218,10 +305,10 @@ export default function ChapterView() {
                 <div
                   className={`flex items-center gap-3 p-4 rounded-xl bg-card border border-border hover:border-primary/50 transition-colors cursor-pointer ${
                     draggingPageId === page.id ? "border-primary/60 bg-card/80" : ""
-                  }`}
+                  } ${navigatingPageSlug === page.slug ? "opacity-70" : ""}`}
                   onDragOver={(event) => handlePageDragOver(event, page.id, index)}
                   onDrop={(event) => handlePageDrop(event, page.id)}
-                  onClick={() => handleNavigateToPage(page.slug)}
+                  onClick={() => void handleNavigateToPage(page.slug)}
                 >
                   {isAdmin && (
                     <span
@@ -239,6 +326,22 @@ export default function ChapterView() {
                       Last updated: {new Date(page.updated_at).toLocaleDateString()}
                     </p>
                   </div>
+                  {isAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="ml-auto text-muted-foreground hover:text-destructive"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (!pageDeleting) {
+                          setPagePendingDeletion(page);
+                        }
+                      }}
+                      disabled={pageDeleting}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </Fragment>
             ))}
@@ -270,6 +373,35 @@ export default function ChapterView() {
         chapterId={chapter.id}
         onPageCreated={fetchChapterAndPages}
       />
+
+      <AlertDialog
+        open={!!pagePendingDeletion}
+        onOpenChange={(open) => {
+          if (!open && !pageDeleting) {
+            setPagePendingDeletion(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete page?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action will permanently delete the page
+              {pagePendingDeletion?.title ? ` "${pagePendingDeletion.title}"` : ""} and its markdown file.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={pageDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDeletePage}
+              disabled={pageDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {pageDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

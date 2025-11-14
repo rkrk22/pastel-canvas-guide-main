@@ -1,14 +1,25 @@
 import { Fragment, useEffect, useState } from "react";
 import type { DragEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import { supabase, Chapter } from "@/lib/supabase";
-import { Book, Plus, Loader2, GripVertical } from "lucide-react";
+import { Book, Plus, Loader2, GripVertical, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CreateChapterDialog } from "./CreateChapterDialog";
 import { toast } from "sonner";
 import { reorderById } from "@/lib/reorder";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface SidebarProps {
   isAdmin: boolean;
@@ -21,6 +32,10 @@ export const Sidebar = ({ isAdmin }: SidebarProps) => {
   const [draggingChapterId, setDraggingChapterId] = useState<string | null>(null);
   const [orderSaving, setOrderSaving] = useState(false);
   const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number | null>(null);
+  const [chapterPendingDeletion, setChapterPendingDeletion] = useState<Chapter | null>(null);
+  const [chapterDeleting, setChapterDeleting] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchChapters();
@@ -39,6 +54,61 @@ export const Sidebar = ({ isAdmin }: SidebarProps) => {
       console.error('Error fetching chapters:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const deleteMarkdownFile = async (slug: string) => {
+    const response = await fetch(`/api/content/pages/${slug}`, { method: "DELETE" });
+    if (!response.ok) {
+      const message = await response.text();
+      throw new Error(message || "Failed to delete markdown file");
+    }
+  };
+
+  const handleConfirmDeleteChapter = async () => {
+    if (!chapterPendingDeletion) return;
+    setChapterDeleting(true);
+    try {
+      const chapterToDelete = chapterPendingDeletion;
+
+      const { data: relatedPages, error: relatedPagesError } = await supabase
+        .from('pages')
+        .select('id, slug')
+        .eq('chapter_id', chapterToDelete.id);
+
+      if (relatedPagesError) throw relatedPagesError;
+
+      if (relatedPages && relatedPages.length > 0) {
+        await Promise.all(
+          relatedPages.map((page) => deleteMarkdownFile(page.slug)),
+        );
+
+        const { error: deletePagesError } = await supabase
+          .from('pages')
+          .delete()
+          .eq('chapter_id', chapterToDelete.id);
+
+        if (deletePagesError) throw deletePagesError;
+      }
+
+      const { error: deleteChapterError } = await supabase
+        .from('chapters')
+        .delete()
+        .eq('id', chapterToDelete.id);
+
+      if (deleteChapterError) throw deleteChapterError;
+
+      setChapters((prev) => prev.filter((chapter) => chapter.id !== chapterToDelete.id));
+      toast.success("Chapter deleted");
+      if (location.pathname.includes(`/app/chapters/${chapterToDelete.slug}`)) {
+        navigate("/app", { replace: true });
+      }
+    } catch (error: any) {
+      console.error("Failed to delete chapter:", error);
+      toast.error(error.message || "Failed to delete chapter");
+    } finally {
+      setChapterDeleting(false);
+      setChapterPendingDeletion(null);
     }
   };
 
@@ -201,6 +271,23 @@ export const Sidebar = ({ isAdmin }: SidebarProps) => {
                     >
                       {chapter.title}
                     </NavLink>
+                    {isAdmin && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          if (!orderSaving && !chapterDeleting) {
+                            setChapterPendingDeletion(chapter);
+                          }
+                        }}
+                        disabled={orderSaving || chapterDeleting}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </Fragment>
               ))}
@@ -223,6 +310,36 @@ export const Sidebar = ({ isAdmin }: SidebarProps) => {
         onOpenChange={setShowCreateDialog}
         onChapterCreated={fetchChapters}
       />
+
+      <AlertDialog
+        open={!!chapterPendingDeletion}
+        onOpenChange={(open) => {
+          if (!open && !chapterDeleting) {
+            setChapterPendingDeletion(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete chapter?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the chapter
+              {chapterPendingDeletion?.title ? ` "${chapterPendingDeletion.title}"` : ""} and all of its pages.
+              Markdown files will be deleted permanently.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={chapterDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDeleteChapter}
+              disabled={chapterDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {chapterDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
