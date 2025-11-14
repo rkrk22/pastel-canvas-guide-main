@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
-import { User } from "@supabase/supabase-js";
-import { supabase, Profile } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { Button } from "@/components/ui/button";
@@ -9,65 +9,40 @@ import { ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 export const AppShell = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const { user, profile, refreshProfile } = useAuth();
   const [showAdminElevation, setShowAdminElevation] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
+    const checkAdminSlot = async () => {
+      if (!user || !profile || profile.role === "admin") {
+        setShowAdminElevation(false);
+        return;
       }
-    });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-          }, 0);
+      const { data: admins } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("role", "admin")
+        .limit(1);
+
+      if (!admins || admins.length === 0) {
+        const adminEmails = import.meta.env.VITE_ADMIN_EMAILS?.split(",").map((e: string) => e.trim()) || [];
+        if (adminEmails.includes(user.email || "")) {
+          setShowAdminElevation(true);
         }
+      } else {
+        setShowAdminElevation(false);
       }
-    );
 
-    return () => subscription.unsubscribe();
-  }, []);
+    };
 
-  const fetchProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) throw error;
-      setProfile(data as Profile);
-
-      checkAdminElevation(data as Profile);
-    } catch (error) {
-      console.error('Error fetching profile:', error);
+    // Only run once user/profile are available.
+    if (user && profile) {
+      checkAdminSlot();
+    } else {
+      setShowAdminElevation(false);
     }
-  };
-
-  const checkAdminElevation = async (currentProfile: Profile) => {
-    if (currentProfile.role === 'admin') return;
-
-    const { data: admins } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('role', 'admin')
-      .limit(1);
-
-    if (!admins || admins.length === 0) {
-      const adminEmails = import.meta.env.VITE_ADMIN_EMAILS?.split(',').map((e: string) => e.trim()) || [];
-      if (adminEmails.includes(user?.email || '')) {
-        setShowAdminElevation(true);
-      }
-    }
-  };
+  }, [user, profile]);
 
   const handleElevateToAdmin = async () => {
     if (!user) return;
@@ -82,7 +57,7 @@ export const AppShell = () => {
 
       toast.success("You are now an admin!");
       setShowAdminElevation(false);
-      fetchProfile(user.id);
+      await refreshProfile();
     } catch (error: any) {
       toast.error(error.message || "Failed to elevate to admin");
     }
