@@ -341,9 +341,6 @@ export default function ChapterView() {
                     )}
                     <div className="text-left flex-1">
                       <h3 className="font-medium leading-tight">{page.title}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Last updated: {new Date(page.updated_at).toLocaleDateString()}
-                      </p>
                     </div>
                     {isAdmin && (
                       <Button
