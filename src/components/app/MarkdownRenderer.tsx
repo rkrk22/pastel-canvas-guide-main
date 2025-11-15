@@ -48,7 +48,7 @@ export const MarkdownRenderer = ({ content }: MarkdownRendererProps) => {
           </blockquote>
         ),
         img: ({ src, alt }) => (
-          <img src={src} alt={alt} className="rounded-xl my-4 max-w-full" />
+          <img src={src} alt={alt} className="rounded-xl my-4 w-full max-w-[450px]" />
         ),
         a: (props) => <VideoEmbed {...props} />,
       }}
