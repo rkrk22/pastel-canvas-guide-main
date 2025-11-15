@@ -3,11 +3,14 @@ import { AnchorHTMLAttributes, ReactNode } from 'react';
 type VideoSource =
   | { type: 'youtube'; embedUrl: string; title: string }
   | { type: 'vimeo'; embedUrl: string; title: string }
-  | { type: 'file'; sourceUrl: string };
+  | { type: 'file'; sourceUrl: string }
+  | { type: 'image'; sourceUrl: string };
 
 const YOUTUBE_HOSTS = new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be']);
 const VIMEO_HOSTS = new Set(['vimeo.com', 'www.vimeo.com', 'player.vimeo.com']);
 const DIRECT_VIDEO_EXTENSIONS = ['.mp4', '.webm'];
+const IMAGE_HOSTS = new Set(['ik.imagekit.io']);
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg'];
 
 const getVideoSource = (href?: string): VideoSource | null => {
   if (!href) {
@@ -52,6 +55,16 @@ const getVideoSource = (href?: string): VideoSource | null => {
         sourceUrl: href,
       };
     }
+
+    if (
+      IMAGE_HOSTS.has(host) ||
+      IMAGE_EXTENSIONS.some((ext) => url.pathname.toLowerCase().endsWith(ext))
+    ) {
+      return {
+        type: 'image',
+        sourceUrl: href,
+      };
+    }
   } catch {
     // Ignore invalid URLs so normal link rendering takes over.
   }
@@ -87,6 +100,17 @@ export const VideoEmbed = ({ href, children, ...rest }: VideoEmbedProps) => {
         src={source.sourceUrl}
         controls
         playsInline
+      />
+    );
+  }
+
+  if (source.type === 'image') {
+    const altText = typeof children === 'string' ? children : 'Embedded image';
+    return (
+      <img
+        className="rounded-xl my-4 w-full max-w-[450px]"
+        src={source.sourceUrl}
+        alt={altText}
       />
     );
   }

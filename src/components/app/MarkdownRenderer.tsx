@@ -47,9 +47,38 @@ export const MarkdownRenderer = ({ content }: MarkdownRendererProps) => {
             {children}
           </blockquote>
         ),
-        img: ({ src, alt }) => (
-          <img src={src} alt={alt} className="rounded-xl my-4 w-full max-w-[450px]" />
-        ),
+        img: ({ src, alt, title, ...rest }) => {
+          const widthMatch = typeof title === 'string' ? title.match(/w=(\d+)/) : null;
+          const alignMatch = typeof title === 'string' ? title.match(/align=(\w+)/i) : null;
+
+          const width = widthMatch ? `${widthMatch[1]}px` : '100%';
+          const align = alignMatch ? alignMatch[1].toLowerCase() : undefined;
+
+          const alignmentStyles =
+            align === 'center'
+              ? { display: 'block', marginLeft: 'auto', marginRight: 'auto' }
+              : align === 'left'
+              ? { display: 'block', marginRight: 'auto' }
+              : align === 'right'
+              ? { display: 'block', marginLeft: 'auto' }
+              : undefined;
+
+          const computedStyle = {
+            width,
+            height: 'auto',
+            ...alignmentStyles,
+          };
+
+          return (
+            <img
+              src={src}
+              alt={alt}
+              style={computedStyle}
+              className="rounded-xl my-4"
+              {...rest}
+            />
+          );
+        },
         a: (props) => <VideoEmbed {...props} />,
       }}
     >
