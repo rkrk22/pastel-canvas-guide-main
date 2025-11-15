@@ -99,7 +99,7 @@ export default function PageView({ slugOverride }: PageViewProps = {}) {
       setContentLoading(true);
     }
     try {
-      const response = await fetch(`/api/content/pages/${pageSlug}`);
+      const response = await fetch(`/content/pages/${pageSlug}.md`);
       if (!response.ok) {
         const message = await response.text();
         throw new Error(message || "Markdown file not found");

@@ -151,7 +151,7 @@ export default function ChapterView() {
         if (!needsPrefetch) return;
 
         try {
-          const response = await fetch(`/api/content/pages/${page.slug}`);
+          const response = await fetch(`/content/pages/${page.slug}.md`);
           if (!response.ok) return;
           const text = await response.text();
           writePageContentCache(page.slug, text, page.updated_at || undefined);

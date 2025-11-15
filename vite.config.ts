@@ -7,7 +7,7 @@ import { IncomingMessage } from "http";
 import { componentTagger } from "lovable-tagger";
 
 const createContentApiMiddleware = () => {
-  const CONTENT_DIR = path.resolve(__dirname, "content/pages");
+  const CONTENT_DIR = path.resolve(__dirname, "public/content/pages");
 
   const ensureDir = async () => {
     await fsPromises.mkdir(CONTENT_DIR, { recursive: true });
