@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { useParams } from "react-router-dom";
 import { supabase, Chapter, Page } from "@/lib/supabase";
@@ -34,6 +34,8 @@ export default function ChapterView() {
   const [pagePendingDeletion, setPagePendingDeletion] = useState<Page | null>(null);
   const [pageDeleting, setPageDeleting] = useState(false);
   const [selectedPageSlug, setSelectedPageSlug] = useState<string | null>(null);
+  const fetchRequestRef = useRef(0);
+  const loadingRequestRef = useRef<number | null>(null);
 
   const checkAdminStatus = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -91,8 +93,17 @@ export default function ChapterView() {
     }
   };
 
-  const fetchChapterAndPages = useCallback(async () => {
+  const fetchChapterAndPages = useCallback(async ({ withLoading }: { withLoading?: boolean } = {}) => {
     if (!chapterSlug) return;
+    const requestId = ++fetchRequestRef.current;
+
+    if (withLoading) {
+      loadingRequestRef.current = requestId;
+      setLoading(true);
+      setChapter(null);
+      setPages([]);
+      setSelectedPageSlug(null);
+    }
 
     try {
       const { data: chapterData, error: chapterError } = await supabase
@@ -102,6 +113,7 @@ export default function ChapterView() {
         .single();
 
       if (chapterError) throw chapterError;
+      if (fetchRequestRef.current !== requestId) return;
       setChapter(chapterData);
 
       const { data: pagesData, error: pagesError } = await supabase
@@ -111,6 +123,7 @@ export default function ChapterView() {
         .order('index_num', { ascending: true });
 
       if (pagesError) throw pagesError;
+      if (fetchRequestRef.current !== requestId) return;
       setPages(pagesData || []);
 
       if (pagesData && pagesData.length > 0) {
@@ -118,6 +131,7 @@ export default function ChapterView() {
         await prefetchPageContents([pagesData[0]]);
         // Warm up the rest of the chapter in the background
         void prefetchPageContents(pagesData.slice(1));
+        if (fetchRequestRef.current !== requestId) return;
         setSelectedPageSlug((current) => {
           if (current && pagesData.some((page) => page.slug === current)) {
             return current;
@@ -130,13 +144,16 @@ export default function ChapterView() {
     } catch (error) {
       console.error('Error fetching chapter:', error);
     } finally {
-      setLoading(false);
+      if (loadingRequestRef.current === requestId) {
+        setLoading(false);
+        loadingRequestRef.current = null;
+      }
     }
   }, [chapterSlug]);
 
   useEffect(() => {
     if (chapterSlug) {
-      fetchChapterAndPages();
+      fetchChapterAndPages({ withLoading: true });
       checkAdminStatus();
     }
   }, [chapterSlug, fetchChapterAndPages, checkAdminStatus]);
@@ -401,7 +418,7 @@ export default function ChapterView() {
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
         chapterId={chapter.id}
-        onPageCreated={fetchChapterAndPages}
+        onPageCreated={() => fetchChapterAndPages({ withLoading: false })}
       />
 
       <AlertDialog
