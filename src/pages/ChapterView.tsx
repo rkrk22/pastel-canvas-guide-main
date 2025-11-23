@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { useParams } from "react-router-dom";
 import { supabase, Chapter, Page } from "@/lib/supabase";
@@ -36,6 +36,10 @@ export default function ChapterView() {
   const [selectedPageSlug, setSelectedPageSlug] = useState<string | null>(null);
   const fetchRequestRef = useRef(0);
   const loadingRequestRef = useRef<number | null>(null);
+  const selectedPage = useMemo(
+    () => pages.find((page) => page.slug === selectedPageSlug) ?? null,
+    [pages, selectedPageSlug],
+  );
 
   const checkAdminStatus = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -402,7 +406,7 @@ export default function ChapterView() {
             <div className="border border-border rounded-2xl bg-card/30 p-4 min-h-[400px]">
               {selectedPageSlug ? (
                 <div className="h-full overflow-auto">
-                  <PageView slugOverride={selectedPageSlug} />
+                  <PageView slugOverride={selectedPageSlug} initialPage={selectedPage} />
                 </div>
               ) : (
                 <div className="h-full flex items-center justify-center text-muted-foreground text-sm">

@@ -15,13 +15,15 @@ import {
 
 interface PageViewProps {
   slugOverride?: string | null;
+  initialPage?: Page | null;
 }
 
-export default function PageView({ slugOverride }: PageViewProps = {}) {
+export default function PageView({ slugOverride, initialPage }: PageViewProps = {}) {
   const { pageSlug, slug: legacySlug } = useParams<{ pageSlug?: string; slug?: string }>();
   const slug = slugOverride ?? pageSlug ?? legacySlug;
   const initialCachedContent = readPageContentCache(slug);
   const hasInitialCache = initialCachedContent !== null;
+  const providedPage = initialPage ?? null;
   const [page, setPage] = useState<Page | null>(null);
   const [content, setContent] = useState(initialCachedContent ?? "");
   const [editContent, setEditContent] = useState(initialCachedContent ?? "");
@@ -37,6 +39,7 @@ export default function PageView({ slugOverride }: PageViewProps = {}) {
     controller: AbortController;
   } | null>(null);
   const latestUpdatedAtRef = useRef<string | null>(null);
+  const adminCheckRef = useRef(false);
 
   const startLoadCycle = (pageSlug: string) => {
     const controller = new AbortController();
@@ -55,10 +58,10 @@ export default function PageView({ slugOverride }: PageViewProps = {}) {
   useEffect(() => {
     if (!slug) return;
 
-    setPage(null);
+    setPage(providedPage ?? null);
     setContentError(null);
     setIsEditing(false);
-    latestUpdatedAtRef.current = null;
+    latestUpdatedAtRef.current = providedPage?.updated_at ?? null;
 
     const primeContentFromCache = (pageSlug: string) => {
       const cached = readPageContentCache(pageSlug);
@@ -123,7 +126,7 @@ export default function PageView({ slugOverride }: PageViewProps = {}) {
       }
     };
 
-    const syncMetadata = async ({
+    const syncFromSupabase = async ({
       pageSlug,
       loadId,
       signal,
@@ -208,29 +211,60 @@ export default function PageView({ slugOverride }: PageViewProps = {}) {
       });
     };
 
-    void requestContent(cachedUpdatedAt, "initial");
+    const hydrateFromChapter = async () => {
+      if (!providedPage || !isActiveLoad(loadId)) return false;
 
-    void syncMetadata({
-      pageSlug: slug,
-      loadId,
-      signal,
-      cachedUpdatedAt,
-      hadCache: cachedContent !== null,
-      onRequireContent: async (updatedAt?: string | null) => {
-        if (updatedAt && cachedUpdatedAt && updatedAt === cachedUpdatedAt) {
-          return;
-        }
-        await requestContent(updatedAt, "refresh");
-      },
-    });
-    void checkAdminStatus();
+      const needsContentFetch = !cachedContent ||
+        (providedPage.updated_at && cachedUpdatedAt !== providedPage.updated_at);
+
+      if (needsContentFetch) {
+        await requestContent(providedPage.updated_at, cachedContent ? "refresh" : "initial");
+      }
+
+      if (!isActiveLoad(loadId)) return true;
+
+      setPage(providedPage);
+      latestUpdatedAtRef.current = providedPage.updated_at ?? null;
+      if (providedPage.updated_at) {
+        writePageContentUpdatedAt(slug, providedPage.updated_at);
+      }
+      setSyncing(false);
+      return true;
+    };
+
+    const initialize = async () => {
+      const hydrated = await hydrateFromChapter();
+      if (hydrated) return;
+
+      void requestContent(cachedUpdatedAt, "initial");
+
+      await syncFromSupabase({
+        pageSlug: slug,
+        loadId,
+        signal,
+        cachedUpdatedAt,
+        hadCache: cachedContent !== null,
+        onRequireContent: async (updatedAt?: string | null) => {
+          if (updatedAt && cachedUpdatedAt && updatedAt === cachedUpdatedAt) {
+            return;
+          }
+          await requestContent(updatedAt, "refresh");
+        },
+      });
+    };
+
+    void initialize();
+    if (!adminCheckRef.current) {
+      adminCheckRef.current = true;
+      void checkAdminStatus();
+    }
 
     return () => {
       if (activeLoadRef.current?.id === loadId) {
         activeLoadRef.current?.controller.abort();
       }
     };
-  }, [slug]);
+  }, [slug, providedPage?.updated_at]);
 
   useEffect(() => {
     if (page?.slug && page.updated_at) {
