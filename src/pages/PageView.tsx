@@ -369,7 +369,7 @@ export default function PageView({ slugOverride }: PageViewProps = {}) {
       )}
 
       {(page?.updated_at || !page) && (
-        <div className="pointer-events-none absolute bottom-0 right-0 text-right text-xs text-muted-foreground space-y-1 p-4">
+        <div className="pointer-events-none absolute top-0 right-0 text-right text-xs text-muted-foreground space-y-1 p-4">
           {!page && <p>Syncing metadata from Supabase…</p>}
           {page?.updated_at && (
             <p>Last synced: {new Date(page.updated_at).toLocaleDateString()}</p>
