@@ -22,8 +22,9 @@ export const ResetPasswordForm = () => {
 
       toast.success("Password reset email sent!");
       setEmail("");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to send reset email");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to send reset email";
+      toast.error(message);
     } finally {
       setLoading(false);
     }

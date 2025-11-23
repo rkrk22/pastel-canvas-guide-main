@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase, Page } from "@/lib/supabase";
 import { Loader2, Edit, Save, X, RefreshCcw } from "lucide-react";
@@ -8,6 +8,7 @@ import { MarkdownRenderer } from "@/components/app/MarkdownRenderer";
 import { toast } from "sonner";
 import {
   readPageContentCache,
+  readPageContentUpdatedAt,
   writePageContentCache,
   writePageContentUpdatedAt,
 } from "@/lib/contentCache";
@@ -30,17 +31,205 @@ export default function PageView({ slugOverride }: PageViewProps = {}) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const activeLoadRef = useRef<{
+    slug: string;
+    id: symbol;
+    controller: AbortController;
+  } | null>(null);
+  const latestUpdatedAtRef = useRef<string | null>(null);
+
+  const startLoadCycle = (pageSlug: string) => {
+    const controller = new AbortController();
+    const loadId = Symbol(pageSlug);
+
+    if (activeLoadRef.current) {
+      activeLoadRef.current.controller.abort();
+    }
+
+    activeLoadRef.current = { slug: pageSlug, id: loadId, controller };
+    return { loadId, signal: controller.signal };
+  };
+
+  const isActiveLoad = (loadId: symbol) => activeLoadRef.current?.id === loadId;
 
   useEffect(() => {
     if (!slug) return;
 
     setPage(null);
     setContentError(null);
-    const hadCache = primeContentFromCache(slug);
+    setIsEditing(false);
+    latestUpdatedAtRef.current = null;
 
-    loadMarkdownContent(slug, hadCache);
-    syncMetadata(slug);
-    checkAdminStatus();
+    const primeContentFromCache = (pageSlug: string) => {
+      const cached = readPageContentCache(pageSlug);
+      if (cached !== null) {
+        setContent(cached);
+        setEditContent(cached);
+        setContentLoading(false);
+        return cached;
+      }
+
+      setContent("");
+      setEditContent("");
+      setContentLoading(true);
+      return null;
+    };
+
+    const loadMarkdownContent = async ({
+      pageSlug,
+      loadId,
+      signal,
+      expectedUpdatedAt,
+      showLoading,
+    }: {
+      pageSlug: string;
+      loadId: symbol;
+      signal: AbortSignal;
+      expectedUpdatedAt?: string;
+      showLoading: boolean;
+    }) => {
+      if (showLoading) {
+        setContentLoading(true);
+      }
+      try {
+        const response = await fetch(`/content/pages/${pageSlug}.md`, { signal });
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(message || "Markdown file not found");
+        }
+        const text = await response.text();
+
+        if (signal.aborted || !isActiveLoad(loadId)) return;
+
+        setContent((current) => (current === text ? current : text));
+        setEditContent((current) => (current === text ? current : text));
+        const updatedAt = expectedUpdatedAt || latestUpdatedAtRef.current || undefined;
+        writePageContentCache(pageSlug, text, updatedAt);
+        setContentError(null);
+      } catch (error: unknown) {
+        if (signal.aborted || !isActiveLoad(loadId)) return;
+
+        if (showLoading) {
+          setContent("");
+          setEditContent("");
+        }
+        const message = error instanceof Error ? error.message : "Failed to load local markdown file";
+        setContentError(message);
+        toast.error(message);
+      } finally {
+        if (isActiveLoad(loadId) && showLoading) {
+          setContentLoading(false);
+        }
+      }
+    };
+
+    const syncMetadata = async ({
+      pageSlug,
+      loadId,
+      signal,
+      cachedUpdatedAt,
+      hadCache,
+      onRequireContent,
+    }: {
+      pageSlug: string;
+      loadId: symbol;
+      signal: AbortSignal;
+      cachedUpdatedAt: string | null;
+      hadCache: boolean;
+      onRequireContent: (updatedAt?: string | null) => Promise<void>;
+    }) => {
+      setSyncing(!hadCache);
+      try {
+        const { data, error } = await supabase
+          .from('pages')
+          .select('id, title, slug, updated_at')
+          .eq('slug', pageSlug)
+          .single();
+
+        if (error) throw error;
+        if (signal.aborted || !isActiveLoad(loadId)) return;
+
+        latestUpdatedAtRef.current = data?.updated_at ?? null;
+        setPage(data);
+        if (data?.updated_at) {
+          writePageContentUpdatedAt(pageSlug, data.updated_at);
+        }
+
+        const needsContentFetch =
+          !hadCache || (data?.updated_at && cachedUpdatedAt !== data.updated_at);
+
+        if (needsContentFetch) {
+          await onRequireContent(data?.updated_at);
+        }
+      } catch (error) {
+        console.error('Error syncing page metadata:', error);
+      } finally {
+        if (isActiveLoad(loadId)) {
+          setSyncing(false);
+        }
+      }
+    };
+
+    const checkAdminStatus = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+        setIsAdmin(data?.role === 'admin');
+      }
+    };
+
+    const { loadId, signal } = startLoadCycle(slug);
+    const cachedContent = primeContentFromCache(slug);
+    const cachedUpdatedAt = readPageContentUpdatedAt(slug);
+    let initialContentRequested = false;
+    let refreshContentRequested = false;
+
+    const requestContent = async (
+      expectedUpdatedAt?: string | null,
+      mode: "initial" | "refresh" = "initial",
+    ) => {
+      if (signal.aborted || !isActiveLoad(loadId)) return;
+      if (mode === "initial" ? initialContentRequested : refreshContentRequested) return;
+      if (mode === "initial") {
+        initialContentRequested = true;
+      } else {
+        refreshContentRequested = true;
+      }
+      await loadMarkdownContent({
+        pageSlug: slug,
+        loadId,
+        signal,
+        expectedUpdatedAt: expectedUpdatedAt ?? undefined,
+        showLoading: cachedContent === null && mode === "initial",
+      });
+    };
+
+    void requestContent(cachedUpdatedAt, "initial");
+
+    void syncMetadata({
+      pageSlug: slug,
+      loadId,
+      signal,
+      cachedUpdatedAt,
+      hadCache: cachedContent !== null,
+      onRequireContent: async (updatedAt?: string | null) => {
+        if (updatedAt && cachedUpdatedAt && updatedAt === cachedUpdatedAt) {
+          return;
+        }
+        await requestContent(updatedAt, "refresh");
+      },
+    });
+    void checkAdminStatus();
+
+    return () => {
+      if (activeLoadRef.current?.id === loadId) {
+        activeLoadRef.current?.controller.abort();
+      }
+    };
   }, [slug]);
 
   useEffect(() => {
@@ -48,79 +237,6 @@ export default function PageView({ slugOverride }: PageViewProps = {}) {
       writePageContentUpdatedAt(page.slug, page.updated_at);
     }
   }, [page?.slug, page?.updated_at]);
-
-  const primeContentFromCache = (pageSlug: string) => {
-    const cached = readPageContentCache(pageSlug);
-    if (cached !== null) {
-      setContent(cached);
-      setEditContent(cached);
-      setContentLoading(false);
-      return true;
-    }
-
-    setContent("");
-    setEditContent("");
-    setContentLoading(true);
-    return false;
-  };
-
-  const checkAdminStatus = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
-      const { data } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', session.user.id)
-        .single();
-      setIsAdmin(data?.role === 'admin');
-    }
-  };
-
-  const syncMetadata = async (pageSlug: string) => {
-    setSyncing(true);
-    try {
-      const { data, error } = await supabase
-        .from('pages')
-        .select('id, title, slug, updated_at')
-        .eq('slug', pageSlug)
-        .single();
-
-      if (error) throw error;
-      setPage(data);
-    } catch (error) {
-      console.error('Error syncing page metadata:', error);
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const loadMarkdownContent = async (pageSlug: string, hadCache = false) => {
-    if (!hadCache) {
-      setContentLoading(true);
-    }
-    try {
-      const response = await fetch(`/content/pages/${pageSlug}.md`);
-      if (!response.ok) {
-        const message = await response.text();
-        throw new Error(message || "Markdown file not found");
-      }
-      const text = await response.text();
-      setContent(text);
-      setEditContent(text);
-      writePageContentCache(pageSlug, text, page?.updated_at || undefined);
-      setContentError(null);
-    } catch (error: any) {
-      setContent("");
-      setEditContent("");
-      const message = error.message || "Failed to load local markdown file";
-      setContentError(message);
-      toast.error(message);
-    } finally {
-      if (!hadCache) {
-        setContentLoading(false);
-      }
-    }
-  };
 
   const handleSave = async () => {
     if (!page) {
@@ -158,8 +274,9 @@ export default function PageView({ slugOverride }: PageViewProps = {}) {
       setContent(editContent);
       writePageContentCache(page.slug, editContent, newTimestamp);
       setPage({ ...page, updated_at: newTimestamp });
-    } catch (error: any) {
-      toast.error(error.message || "Failed to save page");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to save page";
+      toast.error(message);
     } finally {
       setSaving(false);
     }

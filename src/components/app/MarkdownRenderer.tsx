@@ -1,6 +1,7 @@
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { VideoEmbed } from './VideoEmbed';
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { VideoEmbed } from "./VideoEmbed";
 
 interface MarkdownRendererProps {
   content: string;
@@ -32,7 +33,14 @@ export const MarkdownRenderer = ({ content }: MarkdownRendererProps) => {
         li: ({ children }) => (
           <li className="text-foreground">{children}</li>
         ),
-        code: ({ inline, children, ...props }: any) =>
+        code: ({
+          inline,
+          children,
+          ...props
+        }: {
+          inline?: boolean;
+          children?: ReactNode;
+        } & ComponentPropsWithoutRef<"code">) =>
           inline ? (
             <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono text-foreground" {...props}>
               {children}

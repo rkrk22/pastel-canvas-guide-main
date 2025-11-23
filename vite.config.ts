@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import fs from "fs";
 import { promises as fsPromises } from "fs";
-import { IncomingMessage } from "http";
+import { IncomingMessage, ServerResponse } from "http";
 import { componentTagger } from "lovable-tagger";
 
 const createContentApiMiddleware = () => {
@@ -31,7 +31,7 @@ const createContentApiMiddleware = () => {
       req.on("error", reject);
     });
 
-  return async (req: IncomingMessage, res: any, next: () => void) => {
+  return async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     if (!req.url || !req.url.startsWith("/api/content/pages")) {
       return next();
     }
@@ -53,20 +53,22 @@ const createContentApiMiddleware = () => {
           const content = await fsPromises.readFile(filePath, "utf-8");
           res.setHeader("Content-Type", "text/markdown");
           res.end(content);
-        } catch (error: any) {
-          res.statusCode = error.code === "ENOENT" ? 404 : 500;
-          res.end(error.code === "ENOENT" ? "Markdown file not found" : "Failed to read markdown file");
+        } catch (error: unknown) {
+          const err = error as NodeJS.ErrnoException;
+          res.statusCode = err?.code === "ENOENT" ? 404 : 500;
+          res.end(err?.code === "ENOENT" ? "Markdown file not found" : "Failed to read markdown file");
         }
         return;
       }
 
       if (req.method === "POST") {
         const rawBody = await readBody(req);
-        let payload: any = {};
+        let payload: Record<string, unknown> = {};
         if (rawBody) {
-          payload = JSON.parse(rawBody);
+          payload = JSON.parse(rawBody) as Record<string, unknown>;
         }
-        const slug = sanitizeSlug(payload.slug || "");
+        const slugInput = typeof payload.slug === "string" ? payload.slug : "";
+        const slug = sanitizeSlug(slugInput);
         if (!slug) {
           res.statusCode = 400;
           res.end(JSON.stringify({ error: "Invalid slug" }));
@@ -78,7 +80,10 @@ const createContentApiMiddleware = () => {
           res.end(JSON.stringify({ error: "Markdown file already exists" }));
           return;
         }
-        const content = payload.content || `# ${payload.title || slug}\n\nStart writing here...`;
+        const content =
+          typeof payload.content === "string"
+            ? payload.content
+            : `# ${typeof payload.title === "string" ? payload.title : slug}\n\nStart writing here...`;
         await fsPromises.writeFile(filePath, content, "utf-8");
         res.setHeader("Content-Type", "application/json");
         res.end(JSON.stringify({ slug }));
@@ -94,7 +99,7 @@ const createContentApiMiddleware = () => {
         const slug = sanitizeSlug(slugFromPath);
         const filePath = getFilePath(slug);
         const rawBody = await readBody(req);
-        const payload = rawBody ? JSON.parse(rawBody) : {};
+        const payload = (rawBody ? JSON.parse(rawBody) : {}) as Record<string, unknown>;
         if (typeof payload.content !== "string") {
           res.statusCode = 400;
           res.end(JSON.stringify({ error: "content is required" }));
@@ -116,8 +121,9 @@ const createContentApiMiddleware = () => {
         const filePath = getFilePath(slug);
         try {
           await fsPromises.unlink(filePath);
-        } catch (error: any) {
-          if (error.code !== "ENOENT") {
+        } catch (error: unknown) {
+          const err = error as NodeJS.ErrnoException;
+          if (err?.code !== "ENOENT") {
             res.statusCode = 500;
             res.end(JSON.stringify({ error: "Failed to delete markdown file" }));
             return;
@@ -130,9 +136,10 @@ const createContentApiMiddleware = () => {
 
       res.statusCode = 405;
       res.end("Method not allowed");
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.statusCode = 500;
-      res.end(error?.message || "Content API error");
+      const message = error instanceof Error ? error.message : "Content API error";
+      res.end(message);
     }
   };
 };

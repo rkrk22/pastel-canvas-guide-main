@@ -26,8 +26,9 @@ export const LoginForm = () => {
 
       toast.success("Welcome back!");
       navigate("/app");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to login");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to login";
+      toast.error(message);
     } finally {
       setLoading(false);
     }

@@ -103,9 +103,10 @@ export const Sidebar = ({ isAdmin }: SidebarProps) => {
       if (location.pathname.includes(`/app/chapters/${chapterToDelete.slug}`)) {
         navigate("/app", { replace: true });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to delete chapter:", error);
-      toast.error(error.message || "Failed to delete chapter");
+      const message = error instanceof Error ? error.message : "Failed to delete chapter";
+      toast.error(message);
     } finally {
       setChapterDeleting(false);
       setChapterPendingDeletion(null);

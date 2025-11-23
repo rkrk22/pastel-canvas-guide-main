@@ -48,8 +48,9 @@ export const CreateChapterDialog = ({ open, onOpenChange, onChapterCreated }: Cr
       setTitle("");
       onOpenChange(false);
       onChapterCreated();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to create chapter");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to create chapter";
+      toast.error(message);
     } finally {
       setLoading(false);
     }

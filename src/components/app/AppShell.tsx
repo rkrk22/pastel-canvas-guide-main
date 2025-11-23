@@ -58,8 +58,9 @@ export const AppShell = () => {
       toast.success("You are now an admin!");
       setShowAdminElevation(false);
       await refreshProfile();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to elevate to admin");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to elevate to admin";
+      toast.error(message);
     }
   };
 

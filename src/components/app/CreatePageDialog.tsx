@@ -84,8 +84,9 @@ export const CreatePageDialog = ({ open, onOpenChange, chapterId, onPageCreated 
       setTitle("");
       onOpenChange(false);
       onPageCreated();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to create page");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to create page";
+      toast.error(message);
     } finally {
       setLoading(false);
     }

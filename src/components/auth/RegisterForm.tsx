@@ -23,8 +23,9 @@ export const RegisterForm = () => {
       if (error) throw error;
 
       toast.success("Account created! Check your email for confirmation.");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to register");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to register";
+      toast.error(message);
     } finally {
       setLoading(false);
     }

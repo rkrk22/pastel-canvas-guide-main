@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import type { DragEvent } from "react";
 import { useParams } from "react-router-dom";
 import { supabase, Chapter, Page } from "@/lib/supabase";
@@ -35,14 +35,7 @@ export default function ChapterView() {
   const [pageDeleting, setPageDeleting] = useState(false);
   const [selectedPageSlug, setSelectedPageSlug] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (chapterSlug) {
-      fetchChapterAndPages();
-      checkAdminStatus();
-    }
-  }, [chapterSlug]);
-
-  const checkAdminStatus = async () => {
+  const checkAdminStatus = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
       const { data } = await supabase
@@ -52,7 +45,7 @@ export default function ChapterView() {
         .single();
       setIsAdmin(data?.role === 'admin');
     }
-  };
+  }, []);
 
   const deleteMarkdownFile = async (slug: string) => {
     const response = await fetch(`/api/content/pages/${slug}`, { method: "DELETE" });
@@ -88,16 +81,17 @@ export default function ChapterView() {
         return nextPages;
       });
       toast.success("Page deleted");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to delete page:", error);
-      toast.error(error.message || "Failed to delete page");
+      const message = error instanceof Error ? error.message : "Failed to delete page";
+      toast.error(message);
     } finally {
       setPageDeleting(false);
       setPagePendingDeletion(null);
     }
   };
 
-  const fetchChapterAndPages = async () => {
+  const fetchChapterAndPages = useCallback(async () => {
     if (!chapterSlug) return;
 
     try {
@@ -138,7 +132,14 @@ export default function ChapterView() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [chapterSlug]);
+
+  useEffect(() => {
+    if (chapterSlug) {
+      fetchChapterAndPages();
+      checkAdminStatus();
+    }
+  }, [chapterSlug, fetchChapterAndPages, checkAdminStatus]);
 
   const prefetchPageContents = async (pageList: Page[]) => {
     if (typeof window === "undefined" || pageList.length === 0) return;
