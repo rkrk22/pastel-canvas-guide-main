@@ -1,6 +1,7 @@
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import { VideoEmbed } from "./VideoEmbed";
 
 interface MarkdownRendererProps {
@@ -11,6 +12,7 @@ export const MarkdownRenderer = ({ content }: MarkdownRendererProps) => {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeRaw]}
       components={{
         h1: ({ children }) => (
           <h1 className="text-3xl font-bold mb-4 text-foreground">{children}</h1>
@@ -85,6 +87,23 @@ export const MarkdownRenderer = ({ content }: MarkdownRendererProps) => {
               className="rounded-xl my-4"
               {...rest}
             />
+          );
+        },
+        iframe: ({ className, height, width, ...props }) => {
+          const computedHeight =
+            typeof height === "number" ? height : height ? Number(height) || height : 600;
+
+          return (
+            <div className="my-6 overflow-hidden rounded-xl border border-border">
+              <iframe
+                {...props}
+                width="100%"
+                height={computedHeight}
+                className={`w-full ${className ?? ""}`}
+                allowFullScreen
+                loading="lazy"
+              />
+            </div>
           );
         },
         a: (props) => <VideoEmbed {...props} />,
