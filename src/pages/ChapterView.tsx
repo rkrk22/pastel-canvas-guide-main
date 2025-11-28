@@ -325,7 +325,7 @@ export default function ChapterView() {
             )}
           </div>
         ) : (
-          <div className="grid gap-8 lg:grid-cols-[220px,1fr]">
+          <div className="grid gap-8 lg:grid-cols-[180px,1fr]">
             <div className="space-y-2">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-lg font-semibold">Pages:</h2>
