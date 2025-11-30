@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { Session, User } from "@supabase/supabase-js";
-import { supabase, Profile } from "@/lib/supabase";
+import { supabase, Profile, mapDbProfile } from "@/lib/supabase";
 
 interface AuthContextValue {
   user: User | null;
@@ -34,14 +34,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (!data) {
         const { data: newProfile, error: insertError } = await supabase
           .from("profiles")
-          .insert({ id: userId, role: "user" })
+          .insert({ id: userId, role: "user", level: 0 })
           .select()
           .single();
 
         if (insertError) throw insertError;
-        setProfile(newProfile as Profile);
+        setProfile(mapDbProfile(newProfile));
       } else {
-        setProfile(data as Profile);
+        setProfile(mapDbProfile(data));
       }
     } catch (error) {
       console.error("Error ensuring profile:", error);

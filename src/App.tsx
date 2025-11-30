@@ -9,6 +9,8 @@ import { AppShell } from "./components/app/AppShell";
 import { PrivateLayout } from "./components/layouts/PrivateLayout";
 import { InstantReaderLayout } from "./components/layouts/InstantReaderLayout";
 import AppHome from "./pages/AppHome";
+import ReadersPage from "./pages/ReadersPage";
+import AccountPage from "./pages/AccountPage";
 import ChapterView from "./pages/ChapterView";
 import PageView from "./pages/PageView";
 import NotFound from "./pages/NotFound";
@@ -25,6 +27,8 @@ const App = () => {
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Navigate to="/app" replace />} />
+              <Route path="/readers" element={<Navigate to="/app/readers" replace />} />
+              <Route path="/account" element={<Navigate to="/app/account" replace />} />
 
               <Route element={<InstantReaderLayout />}>
                 <Route path="/read/:slug" element={<PageView />} />
@@ -39,6 +43,8 @@ const App = () => {
               <Route path="/app" element={<PrivateLayout />}>
                 <Route element={<AppShell />}>
                   <Route index element={<AppHome />} />
+                  <Route path="readers" element={<ReadersPage />} />
+                  <Route path="account" element={<AccountPage />} />
                   <Route path="chapters/:chapterSlug" element={<ChapterView />} />
                 </Route>
               </Route>
