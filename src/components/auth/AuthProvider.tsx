@@ -34,7 +34,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (!data) {
         const { data: newProfile, error: insertError } = await supabase
           .from("profiles")
-          .insert({ id: userId, role: "user", level: 0 })
+          .insert({ id: userId, role: "user", level: 0, paid: false })
           .select()
           .single();
 

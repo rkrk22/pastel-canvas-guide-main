@@ -120,13 +120,30 @@ export default function ChapterView() {
       if (fetchRequestRef.current !== requestId) return;
       setChapter(chapterData);
 
-      const { data: pagesData, error: pagesError } = await supabase
-        .from('pages')
-        .select('id, title, slug, index_num, chapter_id, updated_at, content_md')
-        .eq('chapter_id', chapterData.id)
-        .order('index_num', { ascending: true });
+      const selectPages = async () => {
+        const { data, error } = await supabase
+          .from('pages')
+          .select('id, title, slug, index_num, chapter_id, updated_at, content_md, is_free')
+          .eq('chapter_id', chapterData.id)
+          .order('index_num', { ascending: true });
 
-      if (pagesError) throw pagesError;
+        if (error) {
+          const code = (error as { code?: string })?.code;
+          if (code === "42703") {
+            const { data: fallbackData, error: fallbackError } = await supabase
+              .from('pages')
+              .select('id, title, slug, index_num, chapter_id, updated_at, content_md')
+              .eq('chapter_id', chapterData.id)
+              .order('index_num', { ascending: true });
+            if (fallbackError) throw fallbackError;
+            return (fallbackData ?? []).map((page) => ({ ...page, is_free: false }));
+          }
+          throw error;
+        }
+        return data ?? [];
+      };
+
+      const pagesData = await selectPages();
       if (fetchRequestRef.current !== requestId) return;
       setPages(pagesData || []);
 
@@ -221,6 +238,7 @@ export default function ChapterView() {
         id,
         chapter_id,
         content_md,
+        is_free,
         slug,
         title,
         index_num,
@@ -229,18 +247,31 @@ export default function ChapterView() {
         id,
         chapter_id,
         content_md,
+        is_free,
         slug,
         title,
         index_num,
         updated_at,
       }));
-      const { error } = await supabase
-        .from('pages')
-        .upsert(payload, { onConflict: 'id' });
+      const upsertPages = async () => {
+        const { error } = await supabase
+          .from('pages')
+          .upsert(payload, { onConflict: 'id' });
+        if (error) {
+          const code = (error as { code?: string })?.code;
+          if (code === "42703") {
+            const fallbackPayload = payload.map(({ is_free, ...rest }) => rest);
+            const { error: fallbackError } = await supabase
+              .from('pages')
+              .upsert(fallbackPayload, { onConflict: 'id' });
+            if (fallbackError) throw fallbackError;
+            return;
+          }
+          throw error;
+        }
+      };
 
-      if (error) {
-        throw error;
-      }
+      await upsertPages();
     } catch (error) {
       console.error("Failed to reorder pages:", error);
       toast.error("Не удалось сохранить порядок страниц");
@@ -406,7 +437,16 @@ export default function ChapterView() {
             <div className="border border-border rounded-2xl bg-card/30 p-4 min-h-[400px]">
               {selectedPageSlug ? (
                 <div className="h-full overflow-auto">
-                  <PageView slugOverride={selectedPageSlug} initialPage={selectedPage} />
+                  <PageView
+                    slugOverride={selectedPageSlug}
+                    initialPage={selectedPage}
+                    onNavigateToSlug={(nextSlug) => {
+                      // Open target page in a new tab/window using the public reader route
+                      const url = `/read/${nextSlug}`;
+                      window.open(url, "_blank", "noopener,noreferrer");
+                      return true;
+                    }}
+                  />
                 </div>
               ) : (
                 <div className="h-full flex items-center justify-center text-muted-foreground text-sm">

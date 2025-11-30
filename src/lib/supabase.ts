@@ -5,6 +5,7 @@ export { supabase } from "@/integrations/supabase/client";
 export type DbProfile = Tables<"profiles">;
 export type Profile = {
   id: string;
+  paid: boolean;
   username: string | null;
   avatar_url: string | null;
   level: number;
@@ -15,6 +16,7 @@ export type Page = Tables<"pages">;
 
 export const mapDbProfile = (profile: DbProfile): Profile => ({
   id: profile.id,
+  paid: (profile as { paid?: boolean })?.paid ?? false,
   username: profile.username ?? null,
   avatar_url: profile.avatar_url ?? null,
   level: profile.level ?? 0,

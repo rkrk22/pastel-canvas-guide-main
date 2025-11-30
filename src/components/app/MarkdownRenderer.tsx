@@ -6,9 +6,10 @@ import { VideoEmbed } from "./VideoEmbed";
 
 interface MarkdownRendererProps {
   content: string;
+  onLinkClick?: (href?: string, event?: React.MouseEvent<HTMLAnchorElement>) => boolean | void;
 }
 
-export const MarkdownRenderer = ({ content }: MarkdownRendererProps) => {
+export const MarkdownRenderer = ({ content, onLinkClick }: MarkdownRendererProps) => {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -106,7 +107,7 @@ export const MarkdownRenderer = ({ content }: MarkdownRendererProps) => {
             </div>
           );
         },
-        a: (props) => <VideoEmbed {...props} />,
+        a: (props) => <VideoEmbed onLinkClick={onLinkClick} {...props} />,
       }}
     >
       {content}

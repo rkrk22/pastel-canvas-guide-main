@@ -1,4 +1,4 @@
-import { AnchorHTMLAttributes, ReactNode } from 'react';
+import { AnchorHTMLAttributes, MouseEvent, ReactNode } from 'react';
 
 type VideoSource =
   | { type: 'youtube'; embedUrl: string; title: string }
@@ -11,6 +11,23 @@ const VIMEO_HOSTS = new Set(['vimeo.com', 'www.vimeo.com', 'player.vimeo.com']);
 const DIRECT_VIDEO_EXTENSIONS = ['.mp4', '.webm'];
 const IMAGE_HOSTS = new Set(['ik.imagekit.io']);
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.svg'];
+
+const isExternalHref = (href?: string) => {
+  if (!href) {
+    return false;
+  }
+
+  try {
+    const base = typeof window !== 'undefined' ? window.location.origin : undefined;
+    const url = new URL(href, base);
+    if (!base) {
+      return url.protocol !== 'file:';
+    }
+    return url.origin !== base;
+  } catch {
+    return /^[a-z][a-z0-9+.-]*:/.test(href);
+  }
+};
 
 const getVideoSource = (href?: string): VideoSource | null => {
   if (!href) {
@@ -74,19 +91,28 @@ const getVideoSource = (href?: string): VideoSource | null => {
 
 interface VideoEmbedProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   children: ReactNode;
+  onLinkClick?: (href?: string, event?: MouseEvent<HTMLAnchorElement>) => boolean | void;
 }
 
-export const VideoEmbed = ({ href, children, ...rest }: VideoEmbedProps) => {
+export const VideoEmbed = ({ href, children, onLinkClick, ...rest }: VideoEmbedProps) => {
+  const { target, rel: relProp, ...anchorProps } = rest;
   const source = getVideoSource(href);
+  const isExternal = isExternalHref(href);
+  const rel = isExternal ? [relProp, 'noopener', 'noreferrer'].filter(Boolean).join(' ') : relProp;
 
   if (!source) {
     return (
       <a
         href={href}
         className="text-primary hover:underline break-words"
-        target="_blank"
-        rel="noopener noreferrer"
-        {...rest}
+        target={isExternal ? '_blank' : target}
+        rel={rel}
+        onClick={(event) => {
+          if (onLinkClick?.(href, event)) {
+            event.preventDefault();
+          }
+        }}
+        {...anchorProps}
       >
         {children}
       </a>

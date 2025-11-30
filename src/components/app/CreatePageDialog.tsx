@@ -53,32 +53,68 @@ export const CreatePageDialog = ({ open, onOpenChange, chapterId, onPageCreated 
     setLoading(true);
 
     try {
-      const { data: pages } = await supabase
-        .from('pages')
-        .select('index_num')
-        .eq('chapter_id', chapterId)
-        .order('index_num', { ascending: false })
-        .limit(1);
+      const selectLastPage = async () => {
+        const { data, error } = await supabase
+          .from('pages')
+          .select('index_num, is_free')
+          .eq('chapter_id', chapterId)
+          .order('index_num', { ascending: false })
+          .limit(1);
+
+        if (error && (error as { code?: string })?.code === "42703") {
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('pages')
+            .select('index_num')
+            .eq('chapter_id', chapterId)
+            .order('index_num', { ascending: false })
+            .limit(1);
+          if (fallbackError) throw fallbackError;
+          return fallbackData;
+        }
+
+        if (error) throw error;
+        return data;
+      };
+
+      const pages = await selectLastPage();
 
       const nextIndex = pages && pages.length > 0 ? pages[0].index_num + 1 : 0;
       const slug = generateSlug(title);
 
       await createMarkdownFile(slug, title);
 
+      const insertPayload = {
+        chapter_id: chapterId,
+        title,
+        slug,
+        index_num: nextIndex,
+        content_md: '',
+        is_free: false,
+      };
+
       const { error } = await supabase
         .from('pages')
-        .insert({
-          chapter_id: chapterId,
-          title,
-          slug,
-          index_num: nextIndex,
-          content_md: '',
-        });
+        .insert(insertPayload);
 
-      if (error) {
+      if (error && (error as { code?: string })?.code === "42703") {
+        const { error: fallbackInsertError } = await supabase
+          .from('pages')
+          .insert({
+            chapter_id: chapterId,
+            title,
+            slug,
+            index_num: nextIndex,
+            content_md: '',
+          });
+        if (fallbackInsertError) {
+          await deleteMarkdownFile(slug);
+          throw fallbackInsertError;
+        }
+      } else if (error) {
         await deleteMarkdownFile(slug);
         throw error;
       }
+
 
       toast.success("Page created!");
       setTitle("");

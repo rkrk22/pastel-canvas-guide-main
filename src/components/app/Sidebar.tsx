@@ -73,7 +73,7 @@ export const Sidebar = ({ isAdmin }: SidebarProps) => {
 
       const { data: relatedPages, error: relatedPagesError } = await supabase
         .from('pages')
-        .select('id, slug')
+        .select('id, slug, is_free')
         .eq('chapter_id', chapterToDelete.id);
 
       if (relatedPagesError) throw relatedPagesError;

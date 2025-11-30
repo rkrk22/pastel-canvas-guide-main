@@ -41,6 +41,7 @@ export type Database = {
           chapter_id: string | null
           content_md: string
           id: string
+          is_free: boolean
           index_num: number
           slug: string
           title: string
@@ -50,6 +51,7 @@ export type Database = {
           chapter_id?: string | null
           content_md?: string
           id?: string
+          is_free?: boolean
           index_num: number
           slug: string
           title: string
@@ -59,6 +61,7 @@ export type Database = {
           chapter_id?: string | null
           content_md?: string
           id?: string
+          is_free?: boolean
           index_num?: number
           slug?: string
           title?: string
@@ -79,25 +82,28 @@ export type Database = {
           created_at: string | null
           id: string
           role: string
-          username: string | null
           avatar_url: string | null
           level: number | null
+          paid: boolean
+          username: string | null
         }
         Insert: {
           created_at?: string | null
           id: string
           role?: string
-          username?: string | null
           avatar_url?: string | null
           level?: number | null
+          paid?: boolean
+          username?: string | null
         }
         Update: {
           created_at?: string | null
           id?: string
           role?: string
-          username?: string | null
           avatar_url?: string | null
           level?: number | null
+          paid?: boolean
+          username?: string | null
         }
         Relationships: []
       }

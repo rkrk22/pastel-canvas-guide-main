@@ -398,7 +398,7 @@ export default function PageView({ slugOverride, initialPage, onNavigateToSlug }
             <div className="flex items-center gap-3">
               {isFree && (
                 <Badge variant="secondary">
-                  Free chapter
+                  Free
                 </Badge>
               )}
               {isAdmin && page && (
@@ -409,7 +409,7 @@ export default function PageView({ slugOverride, initialPage, onNavigateToSlug }
                     onCheckedChange={(checked) => setIsFree(!!checked)}
                     disabled={!isEditing || saving}
                   />
-                  <span>This chapter is free to read</span>
+                  <span>This page is free to read</span>
                 </label>
               )}
             </div>
