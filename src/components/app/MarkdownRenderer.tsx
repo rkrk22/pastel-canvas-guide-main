@@ -152,24 +152,15 @@ export const MarkdownRenderer = ({ content, onLinkClick }: MarkdownRendererProps
           onClick={handleCloseLightbox}
           role="presentation"
         >
-          <div
-            className="relative max-h-full max-w-5xl"
-            onClick={(event) => event.stopPropagation()}
-            role="presentation"
-          >
-            <button
-              type="button"
-              onClick={handleCloseLightbox}
-              className="absolute -right-3 -top-3 rounded-full bg-background px-3 py-1.5 text-sm font-medium text-foreground shadow focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-            >
-              Close
-            </button>
-            <img
-              src={lightboxImage.src}
-              alt={lightboxImage.alt}
-              className="max-h-[80vh] max-w-full rounded-xl object-contain shadow-2xl"
-            />
-          </div>
+          <img
+            src={lightboxImage.src}
+            alt={lightboxImage.alt}
+            className="max-h-[80vh] max-w-full rounded-xl object-contain shadow-2xl cursor-zoom-out"
+            onClick={(event) => {
+              event.stopPropagation();
+              handleCloseLightbox();
+            }}
+          />
         </div>
       ) : null}
     </>

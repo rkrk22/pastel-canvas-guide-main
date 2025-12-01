@@ -134,9 +134,10 @@ export const VideoEmbed = ({ href, children, onLinkClick, ...rest }: VideoEmbedP
     const altText = typeof children === 'string' ? children : 'Embedded image';
     return (
       <img
-        className="rounded-xl my-4 w-full max-w-[450px]"
+        className="rounded-xl my-4 w-full max-w-[450px] cursor-zoom-in"
         src={source.sourceUrl}
         alt={altText}
+        data-markdown-img
       />
     );
   }
