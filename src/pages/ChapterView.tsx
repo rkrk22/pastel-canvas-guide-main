@@ -114,9 +114,15 @@ export default function ChapterView() {
         .from('chapters')
         .select('*')
         .eq('slug', chapterSlug)
-        .single();
+        .maybeSingle();
 
       if (chapterError) throw chapterError;
+      if (!chapterData) {
+        setChapter(null);
+        setPages([]);
+        setSelectedPageSlug(null);
+        return;
+      }
       if (fetchRequestRef.current !== requestId) return;
       setChapter(chapterData);
 
