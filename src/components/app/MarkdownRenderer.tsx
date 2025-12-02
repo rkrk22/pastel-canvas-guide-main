@@ -127,7 +127,7 @@ export const MarkdownRenderer = ({ content, onLinkClick }: MarkdownRendererProps
                 typeof height === "number" ? height : height ? Number(height) || height : 600;
 
               return (
-                <div className="my-6 overflow-hidden rounded-xl border border-border">
+                <div className="my-6 overflow-hidden rounded-xl">
                   <iframe
                     {...props}
                     width="100%"
