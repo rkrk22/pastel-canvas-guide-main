@@ -95,16 +95,36 @@ interface VideoEmbedProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
 }
 
 export const VideoEmbed = ({ href, children, onLinkClick, ...rest }: VideoEmbedProps) => {
-  const { target, rel: relProp, ...anchorProps } = rest;
+  const { target, rel: relProp, className, ...anchorProps } = rest;
   const source = getVideoSource(href);
   const isExternal = isExternalHref(href);
   const rel = isExternal ? [relProp, 'noopener', 'noreferrer'].filter(Boolean).join(' ') : relProp;
+  const isButtonLike = className?.split(/\s+/).includes('md-button');
+  const buttonVariant = className?.split(/\s+/).includes('md-button-outline') ? 'outline' : 'solid';
+
+  const buttonClasses = [
+    'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition',
+    'shadow-sm hover:shadow-md hover:-translate-y-0.5',
+    'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+    buttonVariant === 'outline'
+      ? 'bg-background text-foreground border border-border/80 hover:border-primary/60'
+      : 'bg-[#e6f5ed] text-emerald-900 border border-emerald-200 hover:border-emerald-300',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
+  const textLinkClasses = ['text-primary hover:underline break-words', className]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
 
   if (!source) {
     return (
       <a
         href={href}
-        className="text-primary hover:underline break-words"
+        className={isButtonLike ? buttonClasses : textLinkClasses}
         target={isExternal ? '_blank' : target}
         rel={rel}
         onClick={(event) => {

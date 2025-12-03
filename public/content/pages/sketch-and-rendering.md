@@ -1,3 +1,22 @@
+<div class="flex flex-wrap gap-3 mb-6">
+  <a
+    href="https://ik.imagekit.io/71jz3gcgav/image_MnHUKYr7p.png"
+    target="_blank"
+    rel="noreferrer"
+    class="md-button"
+  >
+    View the final render
+  </a>
+  <a
+    href="https://ik.imagekit.io/71jz3gcgav/image14_iR-pnBolY.png?updatedAt=1764605713410"
+    target="_blank"
+    rel="noreferrer"
+    class="md-button md-button-outline"
+  >
+    Open the first sketch
+  </a>
+</div>
+
 ## The first sketch
 
 Usually, I start with a very **rough** and quick sketch, in order to decide on the angle and the general idea.

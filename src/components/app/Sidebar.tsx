@@ -10,6 +10,7 @@ import { CreateChapterDialog } from "./CreateChapterDialog";
 import { toast } from "sonner";
 import { reorderById } from "@/lib/reorder";
 import { cn } from "@/lib/utils";
+import { isDividerPage } from "@/lib/pageDividers";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -73,15 +74,19 @@ export const Sidebar = ({ isAdmin }: SidebarProps) => {
 
       const { data: relatedPages, error: relatedPagesError } = await supabase
         .from('pages')
-        .select('id, slug, is_free')
+        .select('id, slug, is_free, content_md')
         .eq('chapter_id', chapterToDelete.id);
 
       if (relatedPagesError) throw relatedPagesError;
 
       if (relatedPages && relatedPages.length > 0) {
-        await Promise.all(
-          relatedPages.map((page) => deleteMarkdownFile(page.slug)),
-        );
+        const pagesWithFiles = relatedPages.filter((page) => !isDividerPage(page));
+
+        if (pagesWithFiles.length > 0) {
+          await Promise.all(
+            pagesWithFiles.map((page) => deleteMarkdownFile(page.slug)),
+          );
+        }
 
         const { error: deletePagesError } = await supabase
           .from('pages')
