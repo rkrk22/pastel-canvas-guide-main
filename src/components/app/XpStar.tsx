@@ -138,7 +138,7 @@ export const XpStar = ({ amount, label, once, id, pageSlug, className, ...rest }
     <button
       ref={buttonRef}
       type="button"
-      className={`inline-flex items-center gap-2 rounded-full border border-primary/60 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary shadow-sm transition-transform duration-150 hover:scale-[1.02] hover:bg-primary/15 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${disabled ? "opacity-60 cursor-not-allowed" : ""} ${className ?? ""}`}
+      className={`inline-flex items-center gap-2 rounded-full border border-primary/60 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary shadow-sm transition-transform duration-150 hover:scale-[1.02] hover:bg-primary/15 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${disabled ? "opacity-60 cursor-default" : ""} ${className ?? ""}`}
       onClick={handleClick}
       disabled={disabled}
       {...rest}
