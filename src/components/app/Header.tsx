@@ -9,10 +9,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Gamepad2, LogOut, User as UserIcon, Shield } from "lucide-react";
+import { Gamepad2, LogOut, User as UserIcon, Shield, Star } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useXp } from "./XpProvider";
 
 interface HeaderProps {
   user: User | null;
@@ -21,6 +22,7 @@ interface HeaderProps {
 
 export const Header = ({ user, isAdmin }: HeaderProps) => {
   const navigate = useNavigate();
+  const { exp, setCounterRef } = useXp();
   const navLinks = [
     { label: "Home", to: "/app", end: true },
     { label: "Readers", to: "/app/readers" },
@@ -59,33 +61,43 @@ export const Header = ({ user, isAdmin }: HeaderProps) => {
         </nav>
       </div>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm">
-            <UserIcon className="h-4 w-4 mr-2" />
-            {user?.email}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>My Account</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => navigate("/app/account")}>
-            <UserIcon className="h-4 w-4 mr-2" />
-            Profile
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          {isAdmin && (
-            <DropdownMenuItem disabled>
-              <Shield className="h-4 w-4 mr-2" />
-              Admin Access
+      <div className="flex items-center gap-3">
+        <div
+          ref={setCounterRef}
+          className="group flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-sm font-semibold text-primary shadow-sm"
+        >
+          <Star className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+          <span className="tabular-nums">{exp} XP</span>
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm">
+              <UserIcon className="h-4 w-4 mr-2" />
+              {user?.email}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate("/app/account")}>
+              <UserIcon className="h-4 w-4 mr-2" />
+              Profile
             </DropdownMenuItem>
-          )}
-          <DropdownMenuItem onClick={handleLogout}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            <DropdownMenuSeparator />
+            {isAdmin && (
+              <DropdownMenuItem disabled>
+                <Shield className="h-4 w-4 mr-2" />
+                Admin Access
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={handleLogout}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   );
 };
