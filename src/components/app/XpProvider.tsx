@@ -18,10 +18,15 @@ type AwardOptions = {
   label?: string;
 };
 
+const FLIGHT_DURATION = 1400;
+const FLIGHT_CLEANUP = 1450;
+const PULSE_DURATION = 200;
+
 interface XpContextValue {
   exp: number;
   awardXp: (amount: number, options?: AwardOptions) => Promise<boolean>;
   setCounterRef: (element: HTMLElement | null) => void;
+  pulse: boolean;
 }
 
 const XpContext = createContext<XpContextValue | undefined>(undefined);
@@ -41,6 +46,7 @@ export const XpProvider = ({ children }: { children: React.ReactNode }) => {
   const [exp, setExp] = useState(0);
   const [flights, setFlights] = useState<Flight[]>([]);
   const [counterRef, setCounterRef] = useState<HTMLElement | null>(null);
+  const [pulse, setPulse] = useState(false);
   const pendingRef = useRef(false);
   const latestExp = useRef(0);
 
@@ -130,11 +136,10 @@ export const XpProvider = ({ children }: { children: React.ReactNode }) => {
             end: calcCenter(endRect),
           },
         ]);
-        window.setTimeout(() => removeFlight(id), 1500);
+        window.setTimeout(() => removeFlight(id), FLIGHT_CLEANUP);
       }
 
       pendingRef.current = true;
-      setExp(nextExp);
 
       try {
         const { error } = await supabase
@@ -145,7 +150,14 @@ export const XpProvider = ({ children }: { children: React.ReactNode }) => {
           throw error;
         }
 
-        latestExp.current = nextExp;
+        window.setTimeout(() => {
+          latestExp.current = nextExp;
+          setExp(nextExp);
+        }, FLIGHT_DURATION);
+        window.setTimeout(() => {
+          setPulse(true);
+          window.setTimeout(() => setPulse(false), PULSE_DURATION);
+        }, FLIGHT_DURATION);
         toast.success(`+${amount} XP`);
         return true;
       } catch (error: unknown) {
@@ -167,8 +179,9 @@ export const XpProvider = ({ children }: { children: React.ReactNode }) => {
       exp,
       awardXp,
       setCounterRef,
+      pulse,
     }),
-    [awardXp, exp],
+    [awardXp, exp, pulse],
   );
 
   return (

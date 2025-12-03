@@ -468,7 +468,7 @@ export default function PageView({ slugOverride, initialPage, onNavigateToSlug }
             <div>
               <h3 className="text-sm font-semibold mb-2">Preview</h3>
               <div className="border border-border rounded-xl p-6 min-h-[600px] bg-card">
-                <MarkdownRenderer content={editContent} />
+                <MarkdownRenderer content={editContent} pageSlug={slug ?? ""} />
               </div>
             </div>
           </div>
@@ -478,7 +478,11 @@ export default function PageView({ slugOverride, initialPage, onNavigateToSlug }
           </div>
         ) : (
           <div className="prose prose-lg max-w-none">
-            <MarkdownRenderer content={content} onLinkClick={(href) => handleInternalLink(href)} />
+            <MarkdownRenderer
+              content={content}
+              pageSlug={slug ?? ""}
+              onLinkClick={(href) => handleInternalLink(href)}
+            />
           </div>
         )}
       </ContentGate>

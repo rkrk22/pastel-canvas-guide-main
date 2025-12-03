@@ -21,9 +21,9 @@ const getInitials = (username?: string | null) => {
 };
 
 export const ReaderProfileModal = ({ open, onClose, profile }: ReaderProfileModalProps) => {
-  if (!profile) return null;
-
   const initials = useMemo(() => getInitials(profile?.username), [profile?.username]);
+
+  if (!profile) return null;
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>

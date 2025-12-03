@@ -107,27 +107,22 @@ All colors MUST be HSL.
 @layer utilities {
   @keyframes xp-flight {
     0% {
-      transform: translate(var(--xp-start-x), var(--xp-start-y)) scale(1);
+      transform: translate(calc(var(--xp-start-x) + 8px), var(--xp-start-y)) scale(1);
       opacity: 1;
     }
-<<<<<<< ours
     35% {
-      transform: translate(calc(var(--xp-start-x) + 18px), calc(var(--xp-start-y) + 36px)) scale(0.98);
+      transform: translate(calc(var(--xp-start-x) + 24px), calc(var(--xp-start-y) + 36px)) scale(0.98);
       opacity: 1;
     }
     70% {
       transform: translate(
-        calc(var(--xp-start-x) + (var(--xp-end-x) - var(--xp-start-x)) * 0.65 + 12px),
+        calc(var(--xp-start-x) + (var(--xp-end-x) - var(--xp-start-x)) * 0.65 + 16px),
         calc(var(--xp-start-y) + (var(--xp-end-y) - var(--xp-start-y)) * 0.6 - 12px)
       ) scale(1);
-=======
-    45% {
-      transform: translate(var(--xp-start-x), calc(var(--xp-start-y) + 36px)) scale(0.98);
->>>>>>> theirs
       opacity: 1;
     }
     100% {
-      transform: translate(var(--xp-end-x), var(--xp-end-y)) scale(1);
+      transform: translate(calc(var(--xp-end-x) - 24px), var(--xp-end-y)) scale(1);
       opacity: 1;
     }
   }

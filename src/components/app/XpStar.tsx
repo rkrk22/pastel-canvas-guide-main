@@ -58,22 +58,16 @@ export const XpStar = ({ amount, label, once, id, pageSlug, className, ...rest }
       return;
     }
 
-    if (onceOnly && claimed) {
-      toast.info("XP already collected");
-      return;
-    }
-
     setPending(true);
     const success = await awardXp(parsedAmount, { sourceElement: buttonRef.current, label: labelText });
 
     if (success && onceOnly && typeof window !== "undefined") {
-      window.localStorage.setItem(storageKey, "1");
-      setClaimed(true);
+      // Temporarily disable collected state; do not persist.
     }
     setPending(false);
   };
 
-  const disabled = pending || (onceOnly && claimed);
+  const disabled = pending;
 
   return (
     <button
@@ -85,7 +79,7 @@ export const XpStar = ({ amount, label, once, id, pageSlug, className, ...rest }
       {...rest}
     >
       <Star className={`h-4 w-4 ${disabled ? "" : "animate-pulse"}`} />
-      <span>{onceOnly && claimed ? "Collected" : labelText}</span>
+      <span>{labelText}</span>
     </button>
   );
 };

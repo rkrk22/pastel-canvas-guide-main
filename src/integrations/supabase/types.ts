@@ -83,6 +83,7 @@ export type Database = {
           id: string
           role: string
           avatar_url: string | null
+          exp: number | null
           level: number | null
           paid: boolean
           username: string | null
@@ -92,6 +93,7 @@ export type Database = {
           id: string
           role?: string
           avatar_url?: string | null
+          exp?: number | null
           level?: number | null
           paid?: boolean
           username?: string | null
@@ -101,9 +103,31 @@ export type Database = {
           id?: string
           role?: string
           avatar_url?: string | null
+          exp?: number | null
           level?: number | null
           paid?: boolean
           username?: string | null
+        }
+        Relationships: []
+      }
+      user_progress: {
+        Row: {
+          created_at: string | null
+          updated_at: string | null
+          user_id: string
+          exp: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          updated_at?: string | null
+          user_id: string
+          exp?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          updated_at?: string | null
+          user_id?: string
+          exp?: number | null
         }
         Relationships: []
       }

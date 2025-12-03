@@ -22,7 +22,7 @@ interface HeaderProps {
 
 export const Header = ({ user, isAdmin }: HeaderProps) => {
   const navigate = useNavigate();
-  const { exp, setCounterRef } = useXp();
+  const { exp, setCounterRef, pulse } = useXp();
   const navLinks = [
     { label: "Home", to: "/app", end: true },
     { label: "Readers", to: "/app/readers" },
@@ -64,7 +64,7 @@ export const Header = ({ user, isAdmin }: HeaderProps) => {
       <div className="flex items-center gap-3">
         <div
           ref={setCounterRef}
-          className="group flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-sm font-semibold text-primary shadow-sm"
+          className={`group flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-sm font-semibold text-primary shadow-sm transition-transform duration-150 ${pulse ? "scale-[1.08]" : "scale-100"}`}
         >
           <Star className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
           <span className="tabular-nums">{exp} XP</span>

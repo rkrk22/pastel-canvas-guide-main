@@ -14,6 +14,7 @@ import AccountPage from "./pages/AccountPage";
 import ChapterView from "./pages/ChapterView";
 import PageView from "./pages/PageView";
 import NotFound from "./pages/NotFound";
+import { XpProvider } from "./components/app/XpProvider";
 
 const queryClient = new QueryClient();
 
@@ -24,34 +25,36 @@ const App = () => {
         <Toaster />
         <Sonner />
         <AuthProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Navigate to="/app" replace />} />
-              <Route path="/readers" element={<Navigate to="/app/readers" replace />} />
-              <Route path="/account" element={<Navigate to="/app/account" replace />} />
+          <XpProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Navigate to="/app" replace />} />
+                <Route path="/readers" element={<Navigate to="/app/readers" replace />} />
+                <Route path="/account" element={<Navigate to="/app/account" replace />} />
 
-              <Route element={<InstantReaderLayout />}>
-                <Route path="/read/:slug" element={<PageView />} />
-                <Route
-                  path="/read/chapters/:chapterSlug/pages/:pageSlug"
-                  element={<PageView />}
-                />
-              </Route>
-
-              <Route path="/auth" element={<AuthPage />} />
-
-              <Route path="/app" element={<PrivateLayout />}>
-                <Route element={<AppShell />}>
-                  <Route index element={<AppHome />} />
-                  <Route path="readers" element={<ReadersPage />} />
-                  <Route path="account" element={<AccountPage />} />
-                  <Route path="chapters/:chapterSlug" element={<ChapterView />} />
+                <Route element={<InstantReaderLayout />}>
+                  <Route path="/read/:slug" element={<PageView />} />
+                  <Route
+                    path="/read/chapters/:chapterSlug/pages/:pageSlug"
+                    element={<PageView />}
+                  />
                 </Route>
-              </Route>
 
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
+                <Route path="/auth" element={<AuthPage />} />
+
+                <Route path="/app" element={<PrivateLayout />}>
+                  <Route element={<AppShell />}>
+                    <Route index element={<AppHome />} />
+                    <Route path="readers" element={<ReadersPage />} />
+                    <Route path="account" element={<AccountPage />} />
+                    <Route path="chapters/:chapterSlug" element={<ChapterView />} />
+                  </Route>
+                </Route>
+
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </XpProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

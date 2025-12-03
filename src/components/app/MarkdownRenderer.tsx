@@ -3,13 +3,15 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import { VideoEmbed } from "./VideoEmbed";
+import { XpStar } from "./XpStar";
 
 interface MarkdownRendererProps {
   content: string;
   onLinkClick?: (href?: string, event?: React.MouseEvent<HTMLAnchorElement>) => boolean | void;
+  pageSlug?: string;
 }
 
-export const MarkdownRenderer = ({ content, onLinkClick }: MarkdownRendererProps) => {
+export const MarkdownRenderer = ({ content, onLinkClick, pageSlug }: MarkdownRendererProps) => {
   const [lightboxImage, setLightboxImage] = useState<{ src: string; alt?: string } | null>(null);
 
   const handleMarkdownImageClickCapture = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -139,6 +141,7 @@ export const MarkdownRenderer = ({ content, onLinkClick }: MarkdownRendererProps
                 </div>
               );
             },
+            ["xp-star"]: (props) => <XpStar {...props} pageSlug={pageSlug} />,
             a: (props) => <VideoEmbed onLinkClick={onLinkClick} {...props} />,
           }}
         >

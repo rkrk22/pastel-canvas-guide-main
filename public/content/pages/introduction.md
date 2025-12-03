@@ -12,3 +12,5 @@ The guidebook features a range of resources, such as video tutorials, custom bru
 4. The guidebook not only covers technical skills but also important business-related topics like working with clients, freelancing, pricing, and how to sell game art. This makes it a valuable resource for artists looking to improve their skills and turn their passion into a career.
 
 I hope these features will help you get the most out of the book and achieve your goals in creating stunning game art. Thank you again for your interest, and I look forward to seeing your progress!
+
+<xp-star amount="15" label="Получить XP" once="true" />
