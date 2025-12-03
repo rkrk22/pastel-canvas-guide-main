@@ -1,0 +1,1 @@
+<xp-star id="intro-2" amount="50" once="true" />

@@ -31,9 +31,10 @@ https://ik.imagekit.io/71jz3gcgav/image_FzET75576.png
 
 At first we notice large shapes and gradually move on to smaller ones. The easier it is for the eye to "float" through the contrasts, the more we like the composition
 
-![Notice that I reduced the fourth cube even more, for a more interesting composition. Little things like that sometimes make a big difference](https://ik.imagekit.io/71jz3gcgav/image_mtX3caWYOw.png)
+Notice that I reduced the fourth cube even more, for a more interesting composition. Little things like that sometimes make a big difference.
 
-Notice that I reduced the fourth cube even more, for a more interesting composition. Little things like that sometimes make a big difference
+https://ik.imagekit.io/71jz3gcgav/image_mtX3caWYOw.png
+
 
 <aside>
 💡 We understand the principles of design from nature, where everything is in balance. Therefore, this topic is fundamental. It can be applied to all areas of life.  

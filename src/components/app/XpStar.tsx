@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes } from 
 import { Star } from "lucide-react";
 import { useXp } from "./XpProvider";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 type Boolish = boolean | string | undefined;
 
@@ -24,6 +26,7 @@ interface XpStarProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 export const XpStar = ({ amount, label, once, id, pageSlug, className, ...rest }: XpStarProps) => {
   const { awardXp } = useXp();
+  const { user } = useAuth();
   const [claimed, setClaimed] = useState(false);
   const [pending, setPending] = useState(false);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -39,17 +42,39 @@ export const XpStar = ({ amount, label, once, id, pageSlug, className, ...rest }
     normalizedLabel && normalizedLabel.toLowerCase() === "получить xp"
       ? "Claim XP"
       : normalizedLabel || `+${parsedAmount || 0} XP`;
-  const storageKey = useMemo(() => {
+  const token = useMemo(() => {
     const slug = pageSlug || "global";
     const unique = id || labelText || `xp-${parsedAmount}`;
-    return `xp-claim:${slug}:${unique}`;
+    return `${slug}:${unique}`;
   }, [id, labelText, pageSlug, parsedAmount]);
 
   useEffect(() => {
-    if (!onceOnly || typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(storageKey);
-    setClaimed(stored === "1");
-  }, [onceOnly, storageKey]);
+    let cancelled = false;
+    if (!onceOnly || !user) return;
+
+    const fetchClaim = async () => {
+      const { data, error } = await supabase
+        .from("xp_claims")
+        .select("token")
+        .eq("user_id", user.id)
+        .eq("token", token)
+        .maybeSingle();
+
+      if (cancelled) return;
+      if (error) {
+        console.error("Failed to check claim", error);
+        return;
+      }
+      if (data) {
+        setClaimed(true);
+      }
+    };
+
+    fetchClaim();
+    return () => {
+      cancelled = true;
+    };
+  }, [onceOnly, token, user]);
 
   const handleClick = async () => {
     if (pending) return;
@@ -57,17 +82,57 @@ export const XpStar = ({ amount, label, once, id, pageSlug, className, ...rest }
       toast.error("Invalid XP amount");
       return;
     }
+    if (!user) {
+      toast.error("Please sign in to earn XP");
+      return;
+    }
+    if (onceOnly && claimed) {
+      toast.info("XP already collected");
+      return;
+    }
 
     setPending(true);
-    const success = await awardXp(parsedAmount, { sourceElement: buttonRef.current, label: labelText });
+    let insertedClaim = false;
+    try {
+      if (onceOnly) {
+        const { error: claimError } = await supabase
+          .from("xp_claims")
+          .insert({ user_id: user.id, token });
+        if (claimError) {
+          const code = (claimError as { code?: string })?.code;
+          if (code === "23505") {
+            setClaimed(true);
+            toast.info("XP already collected");
+            setPending(false);
+            return;
+          }
+          throw claimError;
+        }
+        insertedClaim = true;
+      }
 
-    if (success && onceOnly && typeof window !== "undefined") {
-      // Temporarily disable collected state; do not persist.
+      const success = await awardXp(parsedAmount, { sourceElement: buttonRef.current, label: labelText });
+
+      if (!success && insertedClaim) {
+        await supabase
+          .from("xp_claims")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("token", token);
+      }
+
+      if (success && onceOnly) {
+        setClaimed(true);
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Could not claim XP";
+      console.error("XP claim failed", error);
+      toast.error(message);
     }
     setPending(false);
   };
 
-  const disabled = pending;
+  const disabled = pending || (onceOnly && claimed);
 
   return (
     <button
@@ -79,7 +144,7 @@ export const XpStar = ({ amount, label, once, id, pageSlug, className, ...rest }
       {...rest}
     >
       <Star className={`h-4 w-4 ${disabled ? "" : "animate-pulse"}`} />
-      <span>{labelText}</span>
+      <span>{onceOnly && claimed ? "Collected" : labelText}</span>
     </button>
   );
 };

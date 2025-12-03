@@ -13,4 +13,4 @@ The guidebook features a range of resources, such as video tutorials, custom bru
 
 I hope these features will help you get the most out of the book and achieve your goals in creating stunning game art. Thank you again for your interest, and I look forward to seeing your progress!
 
-<xp-star amount="15" label="Получить XP" once="true" />
+<xp-star id="intro-1" amount="50" once="true" />

@@ -15,3 +15,5 @@ Hi! My name is Ruslan Kim. I am the author of Game Art Guidebook. This book is f
 You can also purchase a license for your entire team or company by sending an email to: info@kimruslan.art
 
 **©** Ruslan Kim, 2025
+
+<xp-star id="intro-3" amount="1" once="true" />

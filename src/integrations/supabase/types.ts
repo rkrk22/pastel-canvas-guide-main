@@ -131,6 +131,24 @@ export type Database = {
         }
         Relationships: []
       }
+      xp_claims: {
+        Row: {
+          user_id: string
+          token: string
+          claimed_at: string | null
+        }
+        Insert: {
+          user_id: string
+          token: string
+          claimed_at?: string | null
+        }
+        Update: {
+          user_id?: string
+          token?: string
+          claimed_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

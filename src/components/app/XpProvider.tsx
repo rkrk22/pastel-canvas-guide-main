@@ -18,8 +18,8 @@ type AwardOptions = {
   label?: string;
 };
 
-const FLIGHT_DURATION = 1400;
-const FLIGHT_CLEANUP = 1450;
+const FLIGHT_DURATION = 900;
+const FLIGHT_CLEANUP = 950;
 const PULSE_DURATION = 200;
 
 interface XpContextValue {
@@ -193,7 +193,7 @@ export const XpProvider = ({ children }: { children: React.ReactNode }) => {
               {flights.map((flight) => (
                 <span
                   key={flight.id}
-                  className="absolute text-sm font-semibold text-primary drop-shadow-md animate-[xp-flight_1400ms_linear_forwards]"
+                  className="absolute text-sm font-semibold text-primary drop-shadow-md animate-[xp-flight_900ms_linear_forwards]"
                   style={
                     {
                       "--xp-start-x": `${flight.start.x}px`,
