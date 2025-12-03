@@ -1,6 +1,6 @@
 A lot of different kinds of graphics can match game art, from pixel art to 2D and 3D graphics. In the book I would share more from the point of view of what I was doing and share my personal experience, and for all the time I have been working, more than 10 years in the industry, I have managed to work in almost all directions, except for pixel art.
+<br><br>
 <xp-star id="intro-3" amount="1" once="true" />
-
 The basic principles of good visuals in games are suitable for all types of graphics. Knowledge of composition and design will help you to work both in pixel graphics and in hyper-casual, understanding the basics of animation will help you to understand more physics and build believable dynamic scenes. Working with color, will help you as in the design of the interface and just as in the design of the environment and characters.
 
 In the book, I will sometimes use industry-specific terms. For easier reference, I have collected them all on a separate page. To find a term, press CTRL+F and type the word you need:
