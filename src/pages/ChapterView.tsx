@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { CreatePageDialog } from "@/components/app/CreatePageDialog";
 import { toast } from "sonner";
 import { reorderById } from "@/lib/reorder";
+import { CreateDividerDialog } from "@/components/app/CreateDividerDialog";
+import { isDividerPage } from "@/lib/pageDividers";
 import { readPageContentCache, shouldPrefetchPageContent, writePageContentCache } from "@/lib/contentCache";
 import PageView from "./PageView";
 import {
@@ -27,6 +29,7 @@ export default function ChapterView() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showCreateDividerDialog, setShowCreateDividerDialog] = useState(false);
   const [draggingPageId, setDraggingPageId] = useState<string | null>(null);
   const [pageOrderSaving, setPageOrderSaving] = useState(false);
   const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number | null>(null);
@@ -39,6 +42,11 @@ export default function ChapterView() {
   const selectedPage = useMemo(
     () => pages.find((page) => page.slug === selectedPageSlug) ?? null,
     [pages, selectedPageSlug],
+  );
+
+  const getFirstReadablePageSlug = useCallback(
+    (pageList: Page[]) => pageList.find((page) => !isDividerPage(page))?.slug ?? null,
+    [],
   );
 
   const checkAdminStatus = useCallback(async () => {
@@ -74,15 +82,17 @@ export default function ChapterView() {
 
       if (error) throw error;
 
-      await deleteMarkdownFile(pageToDelete.slug);
+      if (!isDividerPage(pageToDelete)) {
+        await deleteMarkdownFile(pageToDelete.slug);
+      }
 
       setPages((prev) => {
         const nextPages = prev.filter((pageItem) => pageItem.id !== pageToDelete.id);
         setSelectedPageSlug((current) => {
-          if (current && nextPages.some((page) => page.slug === current)) {
+          if (current && nextPages.some((page) => !isDividerPage(page) && page.slug === current)) {
             return current;
           }
-          return nextPages[0]?.slug ?? null;
+          return getFirstReadablePageSlug(nextPages);
         });
         return nextPages;
       });
@@ -153,17 +163,19 @@ export default function ChapterView() {
       if (fetchRequestRef.current !== requestId) return;
       setPages(pagesData || []);
 
-      if (pagesData && pagesData.length > 0) {
+      const readablePages = (pagesData ?? []).filter((page) => !isDividerPage(page));
+
+      if (readablePages.length > 0) {
         // Ensure the first page content is cached before the reader opens
-        await prefetchPageContents([pagesData[0]]);
+        await prefetchPageContents([readablePages[0]]);
         // Warm up the rest of the chapter in the background
-        void prefetchPageContents(pagesData.slice(1));
+        void prefetchPageContents(readablePages.slice(1));
         if (fetchRequestRef.current !== requestId) return;
         setSelectedPageSlug((current) => {
-          if (current && pagesData.some((page) => page.slug === current)) {
+          if (current && readablePages.some((page) => page.slug === current)) {
             return current;
           }
-          return pagesData[0]?.slug ?? null;
+          return getFirstReadablePageSlug(readablePages);
         });
       } else {
         setSelectedPageSlug(null);
@@ -176,7 +188,7 @@ export default function ChapterView() {
         loadingRequestRef.current = null;
       }
     }
-  }, [chapterSlug]);
+  }, [chapterSlug, getFirstReadablePageSlug]);
 
   useEffect(() => {
     if (chapterSlug) {
@@ -188,8 +200,11 @@ export default function ChapterView() {
   const prefetchPageContents = async (pageList: Page[]) => {
     if (typeof window === "undefined" || pageList.length === 0) return;
 
+    const readablePages = pageList.filter((page) => !isDividerPage(page));
+    if (readablePages.length === 0) return;
+
     await Promise.allSettled(
-      pageList.map(async (page) => {
+      readablePages.map(async (page) => {
         if (!page.slug) return;
 
         const needsPrefetch = shouldPrefetchPageContent(page.slug, page.updated_at);
@@ -317,6 +332,8 @@ export default function ChapterView() {
   const handleNavigateToPage = async (pageSlug: string) => {
     if (draggingPageId || navigatingPageSlug === pageSlug) return;
     if (!chapterSlug) return;
+    const targetPage = pages.find((page) => page.slug === pageSlug);
+    if (targetPage && isDividerPage(targetPage)) return;
 
     setNavigatingPageSlug(pageSlug);
     try {
@@ -373,53 +390,70 @@ export default function ChapterView() {
                   </div>
                 )}
               </div>
-              {pages.map((page, index) => (
-                <Fragment key={page.id}>
-                  {dropIndicatorIndex === index && (
-                    <div className="mx-3 my-1 h-0.5 rounded-full bg-primary/80" />
-                  )}
-                  <div
-                    className={`flex items-start gap-2 px-3 py-2 rounded-xl bg-card border border-border hover:border-primary/50 transition-colors cursor-pointer ${
-                      draggingPageId === page.id ? "border-primary/60 bg-card/80" : ""
-                    } ${navigatingPageSlug === page.slug ? "opacity-70" : ""} ${
-                      selectedPageSlug === page.slug ? "border-primary" : ""
-                    }`}
-                    onDragOver={(event) => handlePageDragOver(event, page.id, index)}
-                    onDrop={(event) => handlePageDrop(event, page.id)}
-                    onClick={() => void handleNavigateToPage(page.slug)}
-                  >
-                    {isAdmin && (
-                      <span
-                        className="text-muted-foreground cursor-grab active:cursor-grabbing"
-                        draggable={isAdmin && !pageOrderSaving}
-                        onDragStart={(event) => handlePageDragStart(event, page.id)}
-                        onDragEnd={handlePageDragEnd}
-                      >
-                        <GripVertical className="h-4 w-4" />
-                      </span>
+              {pages.map((page, index) => {
+                const divider = isDividerPage(page);
+                const isSelected = !divider && selectedPageSlug === page.slug;
+
+                return (
+                  <Fragment key={page.id}>
+                    {dropIndicatorIndex === index && (
+                      <div className="mx-3 my-1 h-0.5 rounded-full bg-primary/80" />
                     )}
-                    <div className="text-left flex-1">
-                      <h3 className="font-medium leading-tight">{page.title}</h3>
+                    <div
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border border-border transition-colors ${
+                        divider
+                          ? "bg-muted/30 border-dashed cursor-default"
+                          : "bg-card hover:border-primary/50 cursor-pointer"
+                      } ${draggingPageId === page.id ? "border-primary/60 bg-card/80" : ""} ${
+                        navigatingPageSlug === page.slug ? "opacity-70" : ""
+                      } ${isSelected ? "border-primary" : ""}`}
+                      onDragOver={(event) => handlePageDragOver(event, page.id, index)}
+                      onDrop={(event) => handlePageDrop(event, page.id)}
+                      onClick={
+                        divider ? undefined : () => void handleNavigateToPage(page.slug)
+                      }
+                    >
+                      {isAdmin && (
+                        <span
+                          className="text-muted-foreground cursor-grab active:cursor-grabbing"
+                          draggable={isAdmin && !pageOrderSaving}
+                          onDragStart={(event) => handlePageDragStart(event, page.id)}
+                          onDragEnd={handlePageDragEnd}
+                        >
+                          <GripVertical className="h-4 w-4" />
+                        </span>
+                      )}
+                      <div className="text-left flex-1">
+                        {divider ? (
+                          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                            <span className="flex-1 h-px bg-border" aria-hidden />
+                            <span className="px-1">{page.title}</span>
+                            <span className="flex-1 h-px bg-border" aria-hidden />
+                          </div>
+                        ) : (
+                          <h3 className="font-medium leading-tight">{page.title}</h3>
+                        )}
+                      </div>
+                      {isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="ml-auto text-muted-foreground hover:text-destructive"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (!pageDeleting) {
+                              setPagePendingDeletion(page);
+                            }
+                          }}
+                          disabled={pageDeleting}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
-                    {isAdmin && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="ml-auto text-muted-foreground hover:text-destructive"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (!pageDeleting) {
-                            setPagePendingDeletion(page);
-                          }
-                        }}
-                        disabled={pageDeleting}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </Fragment>
-              ))}
+                  </Fragment>
+                );
+              })}
               <div
                 className="relative h-6"
                 onDragOver={(event) => handlePageDragOver(event, null, null)}
@@ -430,13 +464,22 @@ export default function ChapterView() {
                 )}
               </div>
               {isAdmin && (
-                <Button
-                  variant="outline"
-                  className="w-full mt-4"
-                  onClick={() => setShowCreateDialog(true)}
-                >
-                  Add Page
-                </Button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setShowCreateDialog(true)}
+                  >
+                    Add Page
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    onClick={() => setShowCreateDividerDialog(true)}
+                  >
+                    Add Divider
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -469,6 +512,13 @@ export default function ChapterView() {
         onOpenChange={setShowCreateDialog}
         chapterId={chapter.id}
         onPageCreated={() => fetchChapterAndPages({ withLoading: false })}
+      />
+
+      <CreateDividerDialog
+        open={showCreateDividerDialog}
+        onOpenChange={setShowCreateDividerDialog}
+        chapterId={chapter.id}
+        onDividerCreated={() => fetchChapterAndPages({ withLoading: false })}
       />
 
       <AlertDialog
